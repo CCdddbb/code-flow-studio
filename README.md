@@ -120,7 +120,8 @@ docs/            方案、实际模型说明、交付报告、公开截图
 架构：`代码 → 静态事实/证据 → 校验模型 → 受限模拟 → 通用页面`。浏览器 UI 使用原生 ES Modules，无框架或远程 CDN；分析使用 TypeScript 与 Ajv。
 
 - [实际模型与 API](docs/05-implementation.md)
-- [初始方案](docs/01-project-plan.md) / [契约草案](docs/02-analysis-contract.md) / [迭代路线](docs/03-iteration-backlog.md)
+- [产品迭代计划（v0.1.0 → v1.0）](docs/06-product-iteration-plan.md)
+- [初始方案](docs/01-project-plan.md) / [契约草案](docs/02-analysis-contract.md) / [历史迭代路线](docs/03-iteration-backlog.md)
 - [贡献指南](CONTRIBUTING.md) / [安全说明](SECURITY.md)
 
 ## 上传 GitHub
