@@ -3,9 +3,13 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { safeName, hash } from './safety.js';
 import { assertModel } from './model.js';
+import { assertSharedModel } from './sharing.js';
 
 export async function verifyEvidence(model, directory) {
-  assertModel(model);
+  if (model.schemaVersion === 'share-1.0.0') {
+    assertSharedModel(model);
+    if (model.sharing.mode !== 'review') throw new Error('Business export has no evidence metadata to verify');
+  } else assertModel(model);
   const root = await realpath(directory), results = [];
   for (const file of model.sourceSnapshot.files) {
     safeName(file.name);

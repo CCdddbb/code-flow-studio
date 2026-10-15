@@ -22,7 +22,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
-      - run: npm run analyze -- fixtures/typescript --out site --name "Code Flow Studio · Synthetic demo"
+      - run: npm run analyze -- fixtures/typescript --out site --name "Code Flow Studio · Synthetic demo" --acknowledge-risk
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

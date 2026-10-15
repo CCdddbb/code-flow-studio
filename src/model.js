@@ -28,6 +28,7 @@ export function validateModel(model) {
     if (!files.has(ev.file) || !Number.isInteger(ev.startLine) || ev.startLine < 1 || ev.endLine < ev.startLine || !/^[a-f0-9]{64}$/.test(ev.fileHash) || !/^[a-f0-9]{64}$/.test(ev.excerptHash)) fail(`Invalid evidence ${ev.id}`);
   }
   for (const step of model.steps) {
+    if (!files.has(step.file)) fail(`Unknown step source ${step.id}`);
     if (!entities.has(step.entityId)) fail(`Unknown step entity ${step.id}`);
     if (!['source', 'inferred', 'user-confirmed', 'unknown'].includes(step.basis)) fail(`Invalid basis ${step.id}`);
     if (step.basis === 'source' && !step.evidenceIds?.length) fail(`Source step missing evidence ${step.id}`);
@@ -35,7 +36,10 @@ export function validateModel(model) {
     for (const guard of step.guards) if (!evidence.has(guard.evidenceId)) fail(`Missing guard evidence ${guard.evidenceId}`);
     if (!Array.isArray(step.transforms) || !Array.isArray(step.parameters)) fail(`Missing step contract ${step.id}`);
   }
-  for (const contract of model.contracts) for (const id of contract.evidenceIds) if (!evidence.has(id)) fail(`Missing contract evidence ${id}`);
+  for (const contract of model.contracts) {
+    if (!files.has(contract.file)) fail(`Unknown contract source ${contract.id}`);
+    for (const id of contract.evidenceIds) if (!evidence.has(id)) fail(`Missing contract evidence ${id}`);
+  }
   for (const flow of model.flows) if (!entities.has(flow.from) || !entities.has(flow.to) || !evidence.has(flow.evidenceId)) fail(`Invalid flow ${flow.id}`);
   if (!steps.has(model.entryStepId)) fail('Invalid selected entry');
   if (model.dataMode !== 'mock') fail('Only mock illustrations are supported');

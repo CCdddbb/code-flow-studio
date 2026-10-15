@@ -1,66 +1,94 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b1019">
-  <title>Code Flow Studio · 代码可视化</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23152130'/%3E%3Cpath d='M22 18 10 32l12 14m20-28 12 14-12 14M36 14l-8 36' fill='none' stroke='%2368e6c0' stroke-width='5'/%3E%3C/svg%3E">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f8fa">
+  <title>Code Flow Studio · 代码分析</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2324292f'/%3E%3Cpath d='m11 10-6 6 6 6m10-12 6 6-6 6M18 7l-4 18' stroke='white' stroke-width='2' fill='none'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5m8-10 5 5-5 5M14 4l-4 16"/></symbol>
+    <symbol id="i-flow" viewBox="0 0 24 24"><rect x="3" y="9" width="5" height="6" rx="1"/><rect x="16" y="3" width="5" height="6" rx="1"/><rect x="16" y="15" width="5" height="6" rx="1"/><path d="M8 12h4V6h4m-4 6v6h4"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H5v18h14V8zM14 3v5h5M8 12h8m-8 4h6"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v13m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  </defs></svg>
+  <a class="skip-link" href="#workspace">跳到分析内容</a>
   <div class="app-shell">
-    <aside class="sidebar">
-      <a class="brand" href="./"><span class="brand-icon">⌘</span><span>code flow<span class="brand-sub">STUDIO / 01</span></span></a>
-      <div class="sidebar-label">WORKSPACE</div>
-      <button class="side-button active" id="home-button"><span>◈</span> 流程工作台 <span class="tiny-tag">LIVE</span></button>
-      <button class="side-button" id="upload-open"><span>＋</span> 导入代码</button>
-      <div class="sidebar-label examples-label">EXAMPLES / 自建示例</div>
-      <button class="example-button" data-demo="typescript"><span class="language-icon">TS</span><span>订单数据映射<small>字段转换 / 存储接口</small></span></button>
-      <button class="example-button" data-demo="java"><span class="language-icon java">J</span><span>草稿提交边界<small>Java / 事务注解</small></span></button>
-      <div class="sidebar-note"><span class="privacy-dot"></span> LOCAL FIRST<p>代码仅发送到本机服务。<br>不调用外部 AI，不执行源码。</p></div>
-      <div class="sidebar-footer">SOURCE → STORY<span>v0.1.0 · 开源准备版</span></div>
+    <aside class="sidebar" id="workspace-sidebar" aria-label="工作区导航">
+      <a class="brand" href="./"><span class="brand-icon"><svg class="icon"><use href="#i-code"/></svg></span><span>Code Flow <span class="brand-sub">Studio</span></span><span class="version">0.2</span></a>
+      <nav class="sidebar-navigation" aria-label="项目导航">
+        <div class="sidebar-label">工作区</div>
+        <button class="side-button active" id="home-button"><svg class="icon"><use href="#i-flow"/></svg>当前分析</button>
+        <button class="side-button" id="upload-open"><svg class="icon"><use href="#i-upload"/></svg>导入源码</button>
+        <div class="sidebar-label examples-label">示例项目</div>
+        <button class="example-button" data-demo="typescript"><span class="language-icon">TS</span><span>订单数据映射<small>TypeScript</small></span></button>
+        <button class="example-button" data-demo="java"><span class="language-icon java">J</span><span>草稿提交<small>Java</small></span></button>
+        <div class="sidebar-label examples-label">当前文件 <span id="file-count"></span></div>
+        <div id="source-files" class="source-files"><span class="empty-note">等待载入</span></div>
+        <div class="sidebar-label examples-label">流程步骤</div>
+        <div id="outline-nav" class="outline-nav" aria-label="步骤导航"></div>
+      </nav>
+      <div class="sidebar-note"><span class="privacy-dot"></span> 本机工作区<p>只读分析，不执行源码。<br>文件不会发送至外部服务。</p></div>
+      <div class="sidebar-footer">v0.2.0 <span>静态分析 / 本地运行</span></div>
     </aside>
 
     <div class="main-shell">
-      <header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>Code visualization</strong></div><div class="top-actions"><span class="local-badge">● 本地分析</span><button class="button quiet" id="export-json">↓ JSON</button><button class="button" id="export-html">导出页面 ↗</button></div></header>
-      <main>
-        <section class="hero"><div><div class="eyebrow">MAKE THE INVISIBLE, VISIBLE</div><h1>看见代码里的<span>数据旅程</span><span class="heading-dot">.</span></h1><p>从输入到输出，从字段到存储。一步一步拆开逻辑，结论始终有据可查。</p></div><button class="button primary" id="hero-upload">＋ 导入你的代码</button></section>
+      <header class="topbar">
+        <div class="breadcrumb"><button class="button icon-button menu-toggle" id="sidebar-toggle" aria-label="展开导航" aria-expanded="false" aria-controls="workspace-sidebar"><svg class="icon"><use href="#i-menu"/></svg></button><svg class="icon"><use href="#i-code"/></svg><span>工作区</span><span class="breadcrumb-separator">/</span><strong>代码分析</strong></div>
+        <div class="top-actions"><span class="local-badge">本地</span><button class="button" id="hero-upload"><svg class="icon"><use href="#i-upload"/></svg>导入代码</button><button class="button" id="export-json">JSON</button><button class="button primary" id="export-html"><svg class="icon"><use href="#i-download"/></svg>导出</button></div>
+      </header>
+      <main id="workspace" tabindex="-1">
         <div id="message" role="status" aria-live="polite" hidden></div>
-        <section class="project-strip"><div class="project-mark">⌁</div><div class="project-info"><div class="eyebrow">CURRENT ANALYSIS</div><h2 id="project-name">准备工作台…</h2></div><div class="project-metadata"><span id="language-label">—</span><span class="badge mock">静态分析 · 模拟投影</span></div></section>
-        <section class="stats" aria-label="分析概览"><div><span>源码文件</span><strong id="stat-files">—</strong><small>限定输入范围</small></div><div><span>已发现函数</span><strong id="stat-functions">—</strong><small>可切换分析入口</small></div><div><span>当前流程步骤</span><strong id="stat-steps">—</strong><small>静态调用展开</small></div><div><span>未解析连接</span><strong id="stat-unresolved">—</strong><small>保留边界，不编造实现</small></div></section>
-        <div class="workspace-toolbar"><nav class="tabs" aria-label="工作台视图"><button class="tab active" data-tab="assembly" aria-selected="true">◈ 接入装配</button><button class="tab" data-tab="data" aria-selected="false">⇄ 数据变化</button><button class="tab" data-tab="evidence" aria-selected="false">⌘ 源码证据</button></nav><label class="entry-control">入口 <select id="entry-select" aria-label="选择分析入口"></select></label></div>
+        <section class="project-strip" aria-label="当前项目">
+          <div class="project-info"><div class="project-kicker">分析结果</div><h1 id="project-name">正在载入…</h1></div>
+          <div class="project-metadata"><span id="language-label">—</span><span class="badge">只读快照</span></div>
+        </section>
+        <section class="stats" aria-label="分析概览"><div><strong id="stat-files">—</strong><span>个文件</span></div><div><strong id="stat-functions">—</strong><span>个函数</span></div><div><strong id="stat-steps">—</strong><span>个流程步骤</span></div><div class="stat-warning"><strong id="stat-unresolved">—</strong><span>个未解析调用</span></div></section>
 
-        <section id="assembly-view" class="view">
-          <article class="panel theater"><div class="panel-title"><div><div class="eyebrow">FLOW THEATER</div><h2>一条流程，三个观察视角</h2></div><span class="badge">非真实执行</span></div><p class="section-note">左侧是当前步骤的输入，中间是代码逻辑，右侧是源码中的调用表达式。播放只切换静态步骤，不代表运行顺序。</p>
+        <details class="quality-panel" id="quality-panel"><summary><span class="disclosure-title">分析摘要</span><span id="quality-summary" class="quality-summary">—</span><span id="sharing-level" class="badge">本地内部分析</span></summary><div class="quality-content"><div id="quality-metrics" class="quality-metrics"></div><p id="review-advice" class="section-note"></p><p id="evidence-scope" class="section-note compact"></p><div id="basis-legend" class="basis-legend"></div><details><summary>查看全部节点的依据</summary><div id="node-basis-list" class="node-basis-list"></div></details></div></details>
+
+        <div class="workspace-toolbar"><nav class="tabs" role="tablist" aria-label="分析视图"><button class="tab active" id="tab-assembly" role="tab" data-tab="assembly" aria-controls="assembly-view" aria-selected="true">流程</button><button class="tab" id="tab-data" role="tab" data-tab="data" aria-controls="data-view" aria-selected="false" tabindex="-1">数据转换</button><button class="tab" id="tab-evidence" role="tab" data-tab="evidence" aria-controls="evidence-view" aria-selected="false" tabindex="-1">源码证据</button></nav><label class="entry-control">分析入口 <select id="entry-select" aria-label="选择分析入口"></select></label></div>
+
+        <section id="assembly-view" class="view" role="tabpanel" aria-labelledby="tab-assembly">
+          <article class="panel theater"><div class="panel-title"><div><h2>调用流程</h2><p class="section-note">按源码关系展开。步骤播放不代表实际执行顺序。</p></div><span class="badge mock">静态 / 模拟</span></div>
             <div class="assembly-board">
-              <article class="assembly-card input-card"><div class="card-category"><span>01 / INPUT</span><span class="card-icon">↘</span></div><h3>输入契约</h3><p>以字段结构为起点</p><div id="contract-fields" class="field-list"></div><div class="card-footer">样例输入 · 非采集请求</div></article>
-              <div class="wire"><span>契约</span><div class="wire-line"><i></i></div><small>→</small></div>
-              <article class="assembly-card logic-card"><div class="card-category"><span>02 / LOGIC</span><span class="card-icon">⌘</span></div><h3 id="current-label">—</h3><p id="current-location">—</p><div id="capabilities" class="capabilities"></div><div class="card-footer" id="logic-footer">源码可追溯</div></article>
-              <div class="wire"><span>调用</span><div class="wire-line"><i></i></div><small>→</small></div>
-              <article class="assembly-card output-card"><div class="card-category"><span>03 / CONNECTIONS</span><span class="card-icon">↗</span></div><h3>依赖与交接</h3><p>未知接口保持断开标识</p><div id="dependencies" class="dependency-list"></div><div class="card-footer">类型可能来自命名推断</div></article>
+              <article class="assembly-card input-card"><div class="card-category"><span class="step-number">1</span>输入契约</div><h3>参数与字段</h3><p>当前步骤接受的数据结构</p><div id="contract-fields" class="field-list"></div><div class="card-footer">按类型构造的样例，不是实测请求</div></article>
+              <div class="wire" aria-hidden="true"><div class="wire-line"><i></i></div><svg class="icon"><use href="#i-arrow"/></svg></div>
+              <article class="assembly-card logic-card"><div class="card-category"><span class="step-number">2</span>处理逻辑</div><h3 id="current-label">—</h3><p id="current-location" class="source-location">—</p><div id="capabilities" class="capabilities"></div><div class="card-footer" id="logic-footer">源码声明</div></article>
+              <div class="wire" aria-hidden="true"><div class="wire-line"><i></i></div><svg class="icon"><use href="#i-arrow"/></svg></div>
+              <article class="assembly-card output-card"><div class="card-category"><span class="step-number">3</span>调用依赖</div><h3>下一步交接</h3><p>区分静态匹配与未解析目标</p><div id="dependencies" class="dependency-list"></div><div class="card-footer">节点类型可能来自命名推断</div></article>
             </div>
-            <div class="player-toolbar"><div class="player-actions"><button id="play-button" class="button primary">▶ 播放流程</button><button id="previous-button" class="button quiet" aria-label="上一步">←</button><button id="next-button" class="button quiet" aria-label="下一步">→</button><button id="reset-button" class="button quiet">↺ 重置</button><select id="speed-select" aria-label="播放速度"><option value="4000">1×</option><option value="8000">0.5×</option><option value="2000">2×</option></select></div><span id="position-label"></span></div>
+            <div class="player-toolbar"><div class="player-actions"><button id="play-button" class="button">播放</button><div class="button-group"><button id="previous-button" class="button" aria-label="上一步">←</button><button id="next-button" class="button" aria-label="下一步">→</button></div><button id="reset-button" class="button quiet">重置</button><select id="speed-select" aria-label="播放速度"><option value="4000">1×</option><option value="8000">0.5×</option><option value="2000">2×</option></select></div><span id="position-label"></span></div>
             <div id="timeline" class="timeline" aria-label="静态步骤导航"></div>
-            <div class="caption"><span class="caption-mark">↳</span><div><strong id="caption-title">—</strong><p id="caption-note">—</p></div></div>
+            <div class="caption"><div><strong id="caption-title">—</strong><p id="caption-note">—</p></div></div>
           </article>
-          <div class="bottom-grid"><article class="panel"><div class="panel-title"><h2>流程连接图</h2><span class="eyebrow">STATIC OUTLINE</span></div><div id="flow-list" class="flow-list"></div></article><article class="panel"><div class="panel-title"><h2>分析边界</h2><span class="badge warning">保持可核对</span></div><ul id="limitations" class="limitations"></ul><div id="diagnostic-summary" class="diagnostic-summary"></div></article></div>
+          <div class="bottom-grid"><article class="panel"><div class="panel-title"><h2>调用关系</h2><span class="panel-description">静态展开</span></div><div class="flow-table-heading" aria-hidden="true"><span>调用方</span><span>目标</span><span>依据 / 解析状态</span></div><div id="flow-list" class="flow-list"></div></article><article class="panel"><div class="panel-title"><h2>限制与诊断</h2><span class="badge warning">需核对</span></div><ul id="limitations" class="limitations"></ul><div id="diagnostic-summary" class="diagnostic-summary"></div></article></div>
         </section>
 
-        <section id="data-view" class="view" hidden>
-          <article class="panel"><div class="panel-title"><div><div class="eyebrow">DATA WORKBENCH</div><h2>字段如何抵达下一个形态</h2></div><span class="badge mock">确定性模拟 · 不写入数据库</span></div><p class="section-note">每个步骤独立使用自己的样例入参，不自动沿调用链传值。只求值支持的直线 const / return 投影；未知转换不补造结果。</p>
-            <div class="data-controls"><label>观察步骤 <select id="data-step-select"></select></label><label>输出对象 <select id="transform-select"></select></label><button class="button" id="sample-button">恢复样例</button></div>
-            <div class="json-grid"><article class="json-card"><div class="json-heading"><span>BEFORE / 演示输入</span><button class="button quiet small" id="apply-input">应用修改</button></div><textarea id="input-editor" spellcheck="false" aria-label="编辑演示输入 JSON"></textarea></article><div class="json-arrow">→</div><article class="json-card"><div class="json-heading"><span>AFTER / 选定投影</span><span class="badge mock">MOCK</span></div><pre id="output-json"></pre></article></div>
-            <p id="projection-status" class="projection-status" role="status"></p><div class="detail-grid"><div><h3 class="subheading">字段血缘</h3><div id="field-mappings" class="mapping-list"></div></div><div><h3 class="subheading">输入与投影的结构差异</h3><p class="section-note compact">不同对象形态的比较，不代表数据库删除或更新。</p><div id="diff-list" class="diff-list"></div></div></div>
+        <section id="data-view" class="view" role="tabpanel" aria-labelledby="tab-data" hidden>
+          <article class="panel"><div class="panel-title"><div><h2>数据转换</h2><p class="section-note">编辑样例，核对字段如何进入输出对象。只求值支持的直线 const / return 投影。</p></div><span class="badge mock">模拟，不写入数据库</span></div>
+            <div class="data-controls"><label>步骤 <select id="data-step-select"></select></label><label>输出 <select id="transform-select"></select></label><button class="button" id="sample-button">恢复样例</button></div>
+            <div class="json-grid"><article class="json-card"><div class="json-heading"><span>输入 <code>input.json</code></span><button class="button small" id="apply-input">应用修改</button></div><textarea id="input-editor" spellcheck="false" aria-label="编辑演示输入 JSON"></textarea></article><div class="json-arrow" aria-hidden="true">→</div><article class="json-card"><div class="json-heading"><span>输出 <code>projection.json</code></span><span class="badge mock">模拟</span></div><pre id="output-json"></pre></article></div>
+            <p id="projection-status" class="projection-status" role="status"></p><div class="detail-grid"><div><h3 class="subheading">字段映射</h3><div id="field-mappings" class="mapping-list"></div></div><div><h3 class="subheading">结构差异</h3><p class="section-note compact">对象形态比较，不代表数据库更新或删除。</p><div id="diff-list" class="diff-list"></div></div></div>
           </article>
         </section>
 
-        <section id="evidence-view" class="view" hidden><article class="panel"><div class="panel-title"><div><div class="eyebrow">EVIDENCE, NOT GUESSWORK</div><h2>每一个结论，都能回到代码</h2></div><span id="snapshot-badge" class="badge">—</span></div><p class="section-note">行号与摘要来自本次上传快照；页面不会监听磁盘修改。源码已尽力脱敏，分享前仍须人工核对。</p><div id="evidence-list" class="evidence-list"></div><details class="diagnostics"><summary>解析诊断与未解析项</summary><div id="diagnostics-list"></div></details></article></section>
-        <footer class="main-footer"><span>Code Flow Studio — 不只读代码，也看见它的过程。</span><span>静态事实 / 推断标识 / 模拟数据</span></footer>
+        <section id="evidence-view" class="view" role="tabpanel" aria-labelledby="tab-evidence" hidden><article class="panel"><div class="panel-title"><div><h2>源码证据</h2><p class="section-note">来自上传时的文件快照；不监听磁盘修改。分享前仍需人工核对脱敏结果。</p></div><span id="snapshot-badge" class="badge">—</span></div><div id="evidence-list" class="evidence-list"></div><details class="diagnostics"><summary>解析诊断与未解析项</summary><div id="diagnostics-list"></div></details></article></section>
+        <footer class="main-footer"><span>Code Flow Studio <span class="footer-divider">/</span> 只读静态分析</span><span>Space 播放 <span class="footer-divider">·</span> ← → 切换步骤</span></footer>
       </main>
     </div>
   </div>
 
-  <dialog id="upload-dialog"><form id="upload-form"><div class="modal-title"><div><div class="eyebrow">BRING YOUR CODE</div><h2>导入源码，展开流程</h2></div><button type="button" class="button quiet" id="upload-close" aria-label="关闭">✕</button></div><p>支持 Java、JavaScript、TypeScript。最多 120 个文件 / 总计 2 MB。仅上传到本机服务，源码不落盘。</p><div class="dropzone" id="dropzone"><span class="upload-symbol">↥</span><strong>拖放源码文件到这里</strong><span>或选择文件 / 文件夹</span><div><label class="button">选择文件<input id="file-input" type="file" accept=".java,.js,.jsx,.ts,.tsx" multiple hidden></label><label class="button quiet">选择文件夹<input id="folder-input" type="file" webkitdirectory multiple hidden></label></div></div><div id="selected-files" class="selected-files">尚未选择文件</div><label class="modal-label">项目名称<input id="name-input" maxlength="80" placeholder="我的代码流程"></label><details class="paste-details"><summary>或者粘贴一个代码片段</summary><label class="modal-label">文件名<input id="paste-name" value="snippet.ts"></label><textarea id="paste-code" spellcheck="false" placeholder="export function map(input: Input) { return { name: input.name }; }"></textarea></details><div id="upload-error" class="upload-error" role="alert" hidden></div><div class="modal-footer"><span>不编译 · 不执行 · 不访问业务 API</span><button class="button primary" id="analyze-button" type="submit">开始分析 →</button></div></form></dialog>
+  <dialog id="upload-dialog" aria-labelledby="upload-title"><form id="upload-form"><div class="modal-title"><div><h2 id="upload-title">导入源码</h2><p>选择一个小模块，或粘贴需要分析的代码。</p></div><button type="button" class="button icon-button quiet" id="upload-close" aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><p>支持 Java、JavaScript、TypeScript。最多 120 个文件 / 2 MB。只在本机处理，不落盘。</p><div class="dropzone" id="dropzone"><svg class="icon upload-symbol"><use href="#i-upload"/></svg><strong>拖放源码文件</strong><span>也可以从本机选择</span><div><label class="button">选择文件<input id="file-input" type="file" accept=".java,.js,.jsx,.ts,.tsx" multiple hidden></label><label class="button">选择文件夹<input id="folder-input" type="file" webkitdirectory multiple hidden></label></div></div><div id="selected-files" class="selected-files">尚未选择文件</div><label class="modal-label">项目名称<input id="name-input" maxlength="80" placeholder="例如：订单模块"></label><details class="paste-details"><summary>粘贴代码片段</summary><label class="modal-label">文件名<input id="paste-name" value="snippet.ts"></label><textarea id="paste-code" spellcheck="false" placeholder="在这里粘贴代码"></textarea></details><div id="upload-error" class="upload-error" role="alert" hidden></div><div class="modal-footer"><span>不编译，也不执行代码</span><button class="button primary" id="analyze-button" type="submit">开始分析</button></div></form></dialog>
+  <dialog id="export-dialog" aria-labelledby="export-title"><form id="export-form"><div class="modal-title"><div><h2 id="export-title">导出分析结果</h2><p>选择分享范围，确认文件中会保留哪些内容。</p></div><button type="button" class="button icon-button quiet" id="export-close" aria-label="关闭导出"><svg class="icon"><use href="#i-close"/></svg></button></div><label class="modal-label">分享级别<select id="export-mode"><option value="review">脱敏评审版 · 无源码正文</option><option value="business">业务演示版 · 无文件与证据元数据</option><option value="internal">完整内部版 · 包含源码证据</option></select></label><p id="export-format-label"></p><div class="manifest-grid"><div><h3>保留内容</h3><ul id="export-included"></ul></div><div><h3>移除内容</h3><ul id="export-omitted"></ul></div></div><p id="export-risk" class="export-risk"></p><p id="export-offline-note" hidden>离线页只能重新导出当前级别。更换级别请回到本地工作台。</p><label class="confirm-export"><input id="export-confirmation" type="checkbox">我已核对内容，并确认拥有分享权限、了解上述风险。</label><p id="export-error" class="upload-error" role="alert" hidden></p><div class="modal-footer"><span>分享包不是实际执行证明</span><button type="submit" class="button primary" id="export-submit" disabled>确认并下载</button></div></form></dialog>
   <script type="module" src="./app.js"></script>
 </body>
 </html>

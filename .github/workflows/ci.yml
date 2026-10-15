@@ -19,7 +19,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
-      - run: npm run analyze -- fixtures/typescript --out artifacts/demo
+      - run: npm run analyze -- fixtures/typescript --out artifacts/demo --acknowledge-risk
       - run: npm run evidence -- fixtures/typescript artifacts/demo/analysis.json
   browser:
     runs-on: ubuntu-latest

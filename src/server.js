@@ -5,9 +5,10 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { analyze } from './analyzer.js';
 import { scanDirectory, LIMITS } from './safety.js';
-import { standalone, ROOT } from './export.js';
+import { renderStandalone, ROOT } from './export.js';
+import { prepareExport, manifestFor } from './sharing.js';
 
-const staticFiles = new Map([['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']], ['/style.css', ['style.css', 'text/css']], ['/app.js', ['app.js', 'text/javascript']], ['/simulation.js', ['simulation.js', 'text/javascript']]]);
+const staticFiles = new Map([['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']], ['/style.css', ['style.css', 'text/css']], ['/app.js', ['app.js', 'text/javascript']], ['/simulation.js', ['simulation.js', 'text/javascript']], ['/quality.js', ['quality.js', 'text/javascript']]]);
 const loopback = new Set(['localhost', '127.0.0.1', '[::1]']);
 export function createServer() {
   const token = randomBytes(32).toString('hex');
@@ -25,13 +26,13 @@ export function createServer() {
         const [file, type] = staticFiles.get(url.pathname);
         send(200, await readFile(path.join(ROOT, 'public', file), 'utf8'), type); return;
       }
-      if (req.method === 'GET' && url.pathname === '/api/config') { send(200, { token, limits: LIMITS, version: '0.1.0' }); return; }
+      if (req.method === 'GET' && url.pathname === '/api/config') { send(200, { token, limits: LIMITS, version: '0.2.0' }); return; }
       if (req.method === 'GET' && /^\/api\/demo\/(typescript|java)$/.test(url.pathname)) {
         const kind = url.pathname.split('/').pop();
         const { files } = await scanDirectory(path.join(ROOT, 'fixtures', kind));
         send(200, { files, model: analyze(files, { name: kind === 'java' ? '草稿提交 · Java 合成示例' : '订单创建 · 字段映射示例' }) }); return;
       }
-      if (req.method === 'POST' && ['/api/analyze', '/api/export'].includes(url.pathname)) {
+      if (req.method === 'POST' && ['/api/analyze', '/api/export', '/api/export/preview'].includes(url.pathname)) {
         if (req.headers['x-studio-token'] !== token) { send(403, { error: 'Invalid local session token' }); return; }
         if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) { send(415, { error: 'JSON content type required' }); return; }
         let bytes = 0, chunks = [];
@@ -43,7 +44,17 @@ export function createServer() {
         const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('JSON object required');
         if (url.pathname === '/api/analyze') send(200, analyze(body.files, { entry: body.entry, name: body.name }));
-        else send(200, await standalone(body.model), 'text/html');
+        else {
+          const mode = body.mode || 'review', manifest = manifestFor(mode);
+          const payload = prepareExport(body.model, mode);
+          if (url.pathname === '/api/export/preview') send(200, manifest);
+          else {
+            if (body.confirmed !== true) throw new Error('Export requires explicit risk confirmation');
+            if (body.format === 'json') send(200, payload);
+            else if (!body.format || body.format === 'html') send(200, await renderStandalone(payload), 'text/html');
+            else throw new Error('Export format must be html or json');
+          }
+        }
         return;
       }
       send(404, { error: 'Not found' });

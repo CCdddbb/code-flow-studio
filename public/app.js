@@ -1,13 +1,58 @@
 import { sampleInput, project, differences, mappings } from './simulation.js';
+import { BASIS, qualitySummary, reviewAdvice, EXPORT_MODES } from './quality.js';
 
 const $ = id => document.getElementById(id);
 const state = { model: null, files: null, index: 0, playing: false, timer: null, token: null, tab: 'assembly', selectedFiles: [], offline: !!document.getElementById('embedded-model'), request: 0 };
+const offlineOriginal = state.offline ? '<!doctype html>\n' + document.documentElement.outerHTML : null;
 const pretty = value => JSON.stringify(value, null, 2);
+let exportSnapshot = null, exportFormat = 'html', exportRevision = 0, exportReady = false;
+function basisBadge(basis) {
+  const info = BASIS[basis] || BASIS.unknown;
+  return node('span', `badge basis-badge ${info.className}`, info.label);
+}
+function renderQuality() {
+  const model = state.model, q = qualitySummary(model);
+  $('quality-summary').textContent = `${q.sourceSteps} 个源码步骤 · ${q.unknownRelations} 个未解析调用`;
+  $('quality-metrics').replaceChildren(...[['源码事实步骤', q.sourceSteps], ['静态匹配关系', `${q.staticMatches} / ${q.totalRelations}`], ['推断节点', q.inferredNodes], ['未知关系', q.unknownRelations], ['限制项', q.limitationCount]].map(([label, value]) => {
+    const div = node('div'); div.append(node('span', '', label), node('strong', '', value)); return div;
+  }));
+  $('review-advice').textContent = reviewAdvice(q);
+  $('evidence-scope').textContent = `原分析快照中，源码步骤证据引用：${q.evidencedSteps} / ${q.sourceSteps}。这不是正确率或已确认业务覆盖率。${model.sharing ? '本分享包无证据正文，接收者无法独立核验。' : '未解析连接不计入静态匹配；磁盘证据需另行核验。'}`;
+  $('sharing-level').textContent = model.sharing ? EXPORT_MODES[model.sharing.mode].label : '本地内部分析';
+  $('basis-legend').replaceChildren(...Object.keys(BASIS).map(basisBadge));
+  $('node-basis-list').replaceChildren(...model.entities.map(entity => {
+    const row = node('div', 'node-basis-row'); row.append(node('span', '', entity.label), basisBadge(entity.basis));
+    if (entity.unresolved) row.append(basisBadge('unknown'));
+    return row;
+  }));
+}
 function node(tag, className, content) {
   const element = document.createElement(tag);
   if (className) element.className = className;
   if (content !== undefined) element.textContent = content;
   return element;
+}
+function setSidebar(open) {
+  document.body.classList.toggle('sidebar-open', open);
+  $('sidebar-toggle').setAttribute('aria-expanded', String(open));
+  $('sidebar-toggle').setAttribute('aria-label', open ? '收起导航' : '展开导航');
+}
+function renderProjectNavigation(model) {
+  const files = model.sourceSnapshot?.files || [];
+  $('file-count').textContent = model.sourceSnapshot ? files.length : '—';
+  $('source-files').replaceChildren(...files.map(file => {
+    const row = node('div', 'source-file'); row.title = file.name;
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('class', 'icon'); icon.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use'); use.setAttribute('href', '#i-file'); icon.append(use);
+    row.append(icon, node('span', '', file.name)); return row;
+  }));
+  if (!files.length) $('source-files').append(node('div', 'empty-note', '文件位置已隐藏'));
+  $('outline-nav').replaceChildren(...model.steps.map((step, index) => {
+    const button = node('button'); button.title = step.label;
+    button.append(node('span', '', String(index + 1).padStart(2, '0')), node('code', '', step.label));
+    button.addEventListener('click', () => { selectStep(index); setTab('assembly'); setSidebar(false); }); return button;
+  }));
 }
 function showMessage(message, error = false) {
   $('message').textContent = message;
@@ -26,7 +71,8 @@ async function request(url, data) {
 }
 function stop() {
   clearTimeout(state.timer); state.playing = false;
-  $('play-button').textContent = '▶ 播放流程';
+  $('play-button').textContent = '播放';
+  $('play-button').setAttribute('aria-pressed', 'false');
   document.body.classList.remove('playing');
 }
 function schedule() {
@@ -40,48 +86,48 @@ function play() {
   if (!state.model || state.model.steps.length < 2) return;
   if (state.playing) { stop(); return; }
   if (state.index === state.model.steps.length - 1) { state.index = 0; renderStep(); }
-  state.playing = true; $('play-button').textContent = 'Ⅱ 暂停'; document.body.classList.add('playing'); schedule();
+  state.playing = true; $('play-button').textContent = '暂停'; $('play-button').setAttribute('aria-pressed', 'true'); document.body.classList.add('playing'); schedule();
 }
 function selectStep(index) { stop(); state.index = Math.max(0, Math.min(state.model.steps.length - 1, index)); renderStep(); }
 function setTab(tab) {
   state.tab = tab;
-  for (const button of document.querySelectorAll('[data-tab]')) { button.classList.toggle('active', button.dataset.tab === tab); button.setAttribute('aria-selected', String(button.dataset.tab === tab)); }
+  for (const button of document.querySelectorAll('[data-tab]')) { button.classList.toggle('active', button.dataset.tab === tab); button.setAttribute('aria-selected', String(button.dataset.tab === tab)); button.tabIndex = button.dataset.tab === tab ? 0 : -1; }
   for (const name of ['assembly', 'data', 'evidence']) $(`${name}-view`).hidden = name !== tab;
   if (tab !== 'assembly') stop();
 }
 function installModel(model, files = null) {
-  if (model.schemaVersion !== '1.0.0' || !Array.isArray(model.steps) || !model.steps.length) throw new Error('Unsupported visualization model');
+  if (!['1.0.0', 'share-1.0.0'].includes(model.schemaVersion) || !Array.isArray(model.steps) || !model.steps.length) throw new Error('Unsupported visualization model');
   stop(); state.model = model; state.files = files; state.index = 0;
   $('project-name').textContent = model.project.name;
   $('language-label').textContent = model.project.languages.join(' / ');
   for (const [id, value] of [['stat-files', model.report.files], ['stat-functions', model.report.functions], ['stat-steps', model.steps.length], ['stat-unresolved', model.report.unresolvedCalls]]) $(id).textContent = value;
   $('entry-select').replaceChildren(...model.entries.map(entry => {
-    const option = node('option', '', `${entry.label} · ${entry.file}:${entry.line}`); option.value = entry.id; return option;
+    const option = node('option', '', entry.file ? `${entry.label} · ${entry.file}:${entry.line}` : entry.label); option.value = entry.id; return option;
   }));
   $('entry-select').value = model.entryStepId;
   $('entry-select').disabled = state.offline;
   $('data-step-select').replaceChildren(...model.steps.map((step, i) => { const option = node('option', '', step.label); option.value = i; return option; }));
   $('timeline').replaceChildren(...model.steps.map((step, i) => {
-    const button = node('button'); button.append(node('span', '', `STEP ${String(i + 1).padStart(2, '0')}`), document.createTextNode(step.label));
+    const button = node('button'); button.append(node('span', '', String(i + 1).padStart(2, '0')), document.createTextNode(step.label));
     button.addEventListener('click', () => selectStep(i)); return button;
   }));
   $('flow-list').replaceChildren(...model.flows.slice(0, 80).map(flow => {
     const row = node('div', 'flow-row');
     const from = model.entities.find(n => n.id === flow.from), to = model.entities.find(n => n.id === flow.to);
-    row.append(node('span', '', from.label), node('b', '', '→'), node('span', '', to.label), node('small', '', flow.resolution === 'unresolved' ? '未解析' : '静态匹配'));
+    row.append(node('span', '', from.label), node('b', '', '→'), node('span', '', to.label), basisBadge(to.basis), node('small', '', flow.resolution === 'unresolved' ? '未知目标' : '静态匹配（非运行事实）'));
     return row;
   }));
   if (!model.flows.length) $('flow-list').append(node('div', 'empty-note', '当前入口没有发现调用表达式，可能是纯数据投影。'));
   $('limitations').replaceChildren(...model.report.limitations.map(item => node('li', '', item)));
   $('diagnostic-summary').textContent = `${model.diagnostics.length} 条诊断 · ${model.report.unresolvedCalls} 个未解析调用 · 全部保留在证据视图`;
-  $('snapshot-badge').textContent = `SNAPSHOT ${model.sourceSnapshot.id.slice(0, 10)}`;
-  renderEvidence(); renderStep();
+  $('snapshot-badge').textContent = model.sourceSnapshot ? `SNAPSHOT ${model.sourceSnapshot.id.slice(0, 10)}` : '无源码元数据';
+  renderProjectNavigation(model); renderQuality(); renderEvidence(); renderStep();
   $('play-button').disabled = model.steps.length < 2;
 }
 function renderStep() {
   const step = current(), model = state.model;
   $('current-label').textContent = step.label;
-  $('current-location').textContent = `${step.file}:${step.line}`;
+  $('current-location').textContent = step.file ? `${step.file}:${step.line}` : '业务演示 · 文件位置已移除';
   $('position-label').textContent = `${String(state.index + 1).padStart(2, '0')} / ${String(model.steps.length).padStart(2, '0')} 静态步骤`;
   $('logic-footer').textContent = step.parser === 'java-lexical' ? 'Java 词法提取 · 有限支持' : 'TypeScript AST · 只读分析';
   const fields = [];
@@ -92,7 +138,7 @@ function renderStep() {
   }
   $('contract-fields').replaceChildren(...fields.slice(0, 12).map(field => { const row = node('div', 'field-row'); row.append(node('span', '', field.name), node('span', '', field.type)); return row; }));
   if (!fields.length) $('contract-fields').append(node('div', 'empty-note', '无显式参数'));
-  const capabilities = [node('span', 'capability', '源码事实'), node('span', 'capability', `${step.parameters.length} 个入参`)];
+  const capabilities = [basisBadge(step.basis), basisBadge('mock'), node('span', 'capability', `${step.parameters.length} 个入参`)];
   if (step.transforms.length) capabilities.push(node('span', 'capability', `${step.transforms.length} 个声明式投影`));
   if (step.guards.length) capabilities.push(node('span', 'capability warn', `${step.guards.length} 个条件（未求值）`));
   if (step.transaction) capabilities.push(node('span', 'capability warn', '@Transactional / 生效未验证'));
@@ -100,12 +146,15 @@ function renderStep() {
   const flows = model.flows.filter(f => f.from === step.entityId);
   $('dependencies').replaceChildren(...flows.slice(0, 7).map(flow => {
     const div = node('div', `dependency-item ${flow.resolution === 'unresolved' ? '' : 'resolved'}`);
-    div.append(node('span', 'dot'), document.createTextNode(flow.label + (flow.resolution === 'unresolved' ? ' · 未解析' : ' · 静态匹配'))); return div;
+    const target = model.entities.find(e => e.id === flow.to);
+    const name = node('span', 'dependency-name', flow.label); name.title = flow.label;
+    div.append(node('span', 'dot'), name, basisBadge(target.basis), node('small', '', flow.resolution === 'unresolved' ? '未知目标' : '静态匹配')); return div;
   }));
   if (!flows.length) $('dependencies').append(node('div', 'empty-note', '无调用表达式 · 直接处理数据'));
   if (flows.length > 7) $('dependencies').append(node('div', 'empty-note', `另有 ${flows.length - 7} 个连接，见下方连接图。`));
   [...$('timeline').children].forEach((button, i) => { button.classList.toggle('active', i === state.index); button.setAttribute('aria-current', i === state.index ? 'step' : 'false'); });
-  $('caption-title').textContent = `观察 ${step.label} 的输入、规则与交接`;
+  [...$('outline-nav').children].forEach((button, i) => { button.classList.toggle('active', i === state.index); button.setAttribute('aria-current', i === state.index ? 'step' : 'false'); });
+  $('caption-title').textContent = step.label;
   $('caption-note').textContent = step.guards.length ? `条件：${step.guards[0].condition}。条件分支未执行；静态连接不代表必经路径。` : step.transforms.length ? '支持的声明式投影可在「数据变化」中编辑输入并核对字段来源。' : '当前步骤只提供源码与依赖解释，不编造输出、数据库记录或执行结果。';
   $('previous-button').disabled = state.index === 0;
   $('next-button').disabled = state.index === model.steps.length - 1;
@@ -121,6 +170,11 @@ function renderProjection() {
     const input = JSON.parse($('input-editor').value);
     if ($('input-editor').value.length > 200_000) throw new Error('演示输入过大');
     const step = current(), result = project(step, input), target = $('transform-select').value;
+    if (state.model.sharing) {
+      $('output-json').textContent = '分享版未包含原始转换、字面量或演示值。';
+      $('projection-status').textContent = '为防止源码泄漏，本分享包仅展示字段契约与流程；不执行数据投影重算。';
+      $('field-mappings').replaceChildren(); $('diff-list').replaceChildren(); return;
+    }
     const output = result.supported ? result.output[target] : { $unknown: '当前步骤没有受支持的纯投影；不构造成功结果。' };
     $('output-json').textContent = pretty(output);
     const hasUnknown = pretty(output)?.includes('"$unknown"');
@@ -149,9 +203,12 @@ function renderEvidence() {
     const details = node('details', 'evidence-card'); if (i === 0) details.open = true;
     const summary = node('summary', '', `${ev.file}:${ev.startLine}–${ev.endLine}`);
     summary.append(node('span', 'badge', ev.redacted ? '已脱敏' : '快照证据'));
-    const numbered = ev.excerpt.split('\n').map((line, j) => `${String(ev.startLine + j).padStart(4)}  ${line}`).join('\n');
-    details.append(summary, node('p', '', ev.claim), node('pre', '', numbered), node('div', 'evidence-hash', `SHA-256 / file: ${ev.fileHash} · excerpt: ${ev.excerptHash}`)); return details;
+    const numbered = ev.excerpt?.split('\n').map((line, j) => `${String(ev.startLine + j).padStart(4)}  ${line}`).join('\n');
+    details.append(summary, node('p', '', ev.claim || '仅保留相对位置与原始摘要；源码正文未包含，不能在本包独立核验。'));
+    if (numbered !== undefined) details.append(node('pre', '', numbered));
+    details.append(node('div', 'evidence-hash', `SHA-256 / file: ${ev.fileHash} · excerpt: ${ev.excerptHash}`)); return details;
   }));
+  if (!model.evidence.length) $('evidence-list').append(node('div', 'empty-note', '业务演示版已移除文件、行号与证据摘要，不提供源码核验。'));
   $('diagnostics-list').replaceChildren(...model.diagnostics.map(d => { const div = node('div', 'diagnostic-item'); div.append(node('code', '', `${d.code}${d.file ? ` / ${d.file}:${d.line || 1}` : ''}`), document.createTextNode(d.message)); return div; }));
 }
 async function loadDemo(kind) {
@@ -160,12 +217,12 @@ async function loadDemo(kind) {
   try {
     clearMessage(); const response = await request(`/api/demo/${kind}`); const result = await response.json();
     if (version !== state.request) return;
-    installModel(result.model, result.files); setTab('assembly');
+    installModel(result.model, result.files); setTab('assembly'); setSidebar(false);
   } catch (error) { showMessage(error.message, true); }
 }
 function openUpload() {
   if (state.offline) { showMessage('离线页面支持回放与编辑演示输入。新代码分析请运行 npm start。'); return; }
-  $('upload-error').hidden = true; $('upload-dialog').showModal();
+  setSidebar(false); $('upload-error').hidden = true; $('upload-dialog').showModal();
 }
 async function selectFiles(files) {
   const list = [...files].filter(f => /\.(?:java|[jt]sx?)$/i.test(f.name) && !/(?:^|\/)(?:node_modules|\.git|target|dist|build|coverage)(?:\/|$)/.test(f.webkitRelativePath));
@@ -189,22 +246,59 @@ async function analyzeUpload(event) {
     if (version !== state.request) return;
     installModel(model, files); setTab('assembly'); $('upload-dialog').close(); showMessage('分析完成。入口和未解析项已列出；数据投影是模拟，不是实际执行。');
   } catch (error) { $('upload-error').textContent = error.message; $('upload-error').hidden = false; }
-  finally { button.disabled = false; button.textContent = '开始分析 →'; }
+  finally { button.disabled = false; button.textContent = '开始分析'; }
 }
 function download(content, filename, type) {
   const url = URL.createObjectURL(new Blob([content], { type }));
   const a = node('a'); a.href = url; a.download = filename; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-async function exportHtml() {
-  if (!state.model) return;
-  if (state.offline) { download(document.documentElement.outerHTML, 'code-flow.html', 'text/html'); return; }
+async function previewExport() {
+  const revision = ++exportRevision;
+  exportReady = false; $('export-confirmation').checked = false; $('export-confirmation').disabled = true; $('export-submit').disabled = true; $('export-error').hidden = true;
+  $('export-risk').textContent = '准备内容清单…'; $('export-included').replaceChildren(); $('export-omitted').replaceChildren();
+  const mode = $('export-mode').value;
   try {
-    const response = await request('/api/export', { model: state.model });
-    download(await response.text(), 'code-flow.html', 'text/html');
-    showMessage('已导出独立 HTML（含脱敏证据）。分享前请人工审查源码片段；可双击离线打开。');
-  } catch (error) { showMessage(error.message, true); }
+    const manifest = state.offline ? EXPORT_MODES[mode] : await (await request('/api/export/preview', { model: exportSnapshot, mode })).json();
+    if (revision !== exportRevision || !$('export-dialog').open) return;
+    $('export-included').replaceChildren(...manifest.included.map(item => node('li', '', item)));
+    $('export-omitted').replaceChildren(...manifest.omitted.map(item => node('li', '', item)));
+    $('export-risk').textContent = manifest.risk; exportReady = true; $('export-confirmation').disabled = false;
+  } catch (error) { $('export-error').textContent = error.message; $('export-error').hidden = false; }
 }
-for (const button of document.querySelectorAll('[data-tab]')) button.addEventListener('click', () => setTab(button.dataset.tab));
+function openExport(format) {
+  if (!state.model) return;
+  stop(); exportSnapshot = state.model; exportFormat = format;
+  $('export-format-label').textContent = `文件格式：${format.toUpperCase()}。只导出分析快照，不包含你在工作台临时修改的输入。`;
+  $('export-mode').value = state.offline ? state.model.sharing?.mode || 'internal' : 'review';
+  $('export-mode').disabled = state.offline; $('export-offline-note').hidden = !state.offline;
+  $('export-dialog').showModal(); previewExport();
+}
+async function submitExport(event) {
+  event.preventDefault();
+  if (!exportReady || !$('export-confirmation').checked) return;
+  $('export-submit').disabled = true;
+  try {
+    const mode = $('export-mode').value;
+    if (state.offline) download(exportFormat === 'html' ? offlineOriginal : pretty(exportSnapshot), exportFormat === 'html' ? 'code-flow.html' : 'analysis.json', exportFormat === 'html' ? 'text/html' : 'application/json');
+    else {
+      const response = await request('/api/export', { model: exportSnapshot, mode, format: exportFormat, confirmed: true });
+      download(await response.text(), exportFormat === 'html' ? 'code-flow.html' : 'analysis.json', exportFormat === 'html' ? 'text/html' : 'application/json');
+    }
+    $('export-dialog').close(); showMessage(`已导出${EXPORT_MODES[mode].label}。分享前仍须人工审查。`);
+  } catch (error) { $('export-error').textContent = error.message; $('export-error').hidden = false; }
+  finally { $('export-submit').disabled = !$('export-confirmation').checked; }
+}
+for (const button of document.querySelectorAll('[data-tab]')) {
+  button.addEventListener('click', () => setTab(button.dataset.tab));
+  button.addEventListener('keydown', event => {
+    const tabs = [...document.querySelectorAll('[data-tab]')];
+    const index = tabs.indexOf(button);
+    const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : null;
+    if (next === null) return;
+    event.preventDefault(); setTab(tabs[next].dataset.tab); tabs[next].focus();
+  });
+}
+$('sidebar-toggle').addEventListener('click', () => setSidebar(!document.body.classList.contains('sidebar-open')));
 for (const button of document.querySelectorAll('[data-demo]')) button.addEventListener('click', () => loadDemo(button.dataset.demo));
 for (const id of ['upload-open', 'hero-upload']) $(id).addEventListener('click', openUpload);
 $('upload-close').addEventListener('click', () => $('upload-dialog').close());
@@ -214,7 +308,7 @@ $('folder-input').addEventListener('change', event => selectFiles(event.target.f
 $('dropzone').addEventListener('dragover', event => { event.preventDefault(); $('dropzone').classList.add('dragging'); });
 $('dropzone').addEventListener('dragleave', () => $('dropzone').classList.remove('dragging'));
 $('dropzone').addEventListener('drop', event => { event.preventDefault(); $('dropzone').classList.remove('dragging'); selectFiles(event.dataTransfer.files); });
-$('home-button').addEventListener('click', () => setTab('assembly'));
+$('home-button').addEventListener('click', () => { setTab('assembly'); setSidebar(false); });
 $('play-button').addEventListener('click', play);
 $('previous-button').addEventListener('click', () => selectStep(state.index - 1));
 $('next-button').addEventListener('click', () => selectStep(state.index + 1));
@@ -232,11 +326,16 @@ $('entry-select').addEventListener('change', async event => {
     const model = await response.json(); if (version === state.request) { installModel(model, state.files); clearMessage(); }
   } catch (error) { $('entry-select').value = state.model.entryStepId; showMessage(error.message, true); }
 });
-$('export-json').addEventListener('click', () => { if (state.model) { download(pretty(state.model), 'analysis.json', 'application/json'); showMessage('JSON 包含脱敏源码证据。分享前仍须人工审查。'); } });
-$('export-html').addEventListener('click', exportHtml);
+$('export-json').addEventListener('click', () => openExport('json'));
+$('export-html').addEventListener('click', () => openExport('html'));
+$('export-close').addEventListener('click', () => { exportRevision++; $('export-dialog').close(); });
+$('export-mode').addEventListener('change', previewExport);
+$('export-confirmation').addEventListener('change', () => { $('export-submit').disabled = !exportReady || !$('export-confirmation').checked; });
+$('export-form').addEventListener('submit', submitExport);
 document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
 document.addEventListener('keydown', event => {
-  if (!state.model || $('upload-dialog').open || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'SUMMARY'].includes(document.activeElement.tagName)) return;
+  if (event.key === 'Escape') setSidebar(false);
+  if (!state.model || $('upload-dialog').open || $('export-dialog').open || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'SUMMARY'].includes(document.activeElement.tagName)) return;
   if (event.code === 'Space' && state.tab === 'assembly') { event.preventDefault(); play(); }
   if (event.key === 'ArrowRight') { event.preventDefault(); selectStep(state.index + 1); }
   if (event.key === 'ArrowLeft') { event.preventDefault(); selectStep(state.index - 1); }
@@ -245,7 +344,7 @@ async function boot() {
   try {
     if (state.offline) {
       installModel(JSON.parse($('embedded-model').textContent));
-      document.querySelector('.local-badge').textContent = '● 离线快照';
+      document.querySelector('.local-badge').textContent = '离线快照';
       showMessage('独立离线页面 · 源码快照已固定；可以播放、切换步骤和修改演示输入。');
     } else {
       const config = await (await request('/api/config')).json(); state.token = config.token;

@@ -4,7 +4,7 @@
 
 Local-first, evidence-backed visualization for Java, JavaScript and TypeScript. Upload source, explore a static flow outline, inspect field mappings, and export a standalone interactive page.
 
-> v0.1.0 是可运行的静态分析与可视化项目，不是任意代码执行器。它区分源码事实、命名推断与模拟投影；无法解析的行为保留为未知。
+> v0.2.0 新增质量摘要与三种导出级别，默认导出无源码正文的评审版。它是静态分析与可视化项目，不是任意代码执行器。它区分源码事实、命名推断与模拟投影；无法解析的行为保留为未知。
 
 ![接入装配工作台](docs/images/studio-desktop.png)
 
@@ -12,11 +12,12 @@ Local-first, evidence-backed visualization for Java, JavaScript and TypeScript. 
 
 - **导入代码**：多文件、文件夹、拖放或粘贴片段；也可通过 CLI 分析本地模块。
 - **入口选择**：发现函数与方法，按选定入口展开有限静态调用关系。
-- **接入装配台**：输入契约 → 当前逻辑 → 依赖交接，支持逐步播放、定位、速度和重置。
+- **流程工作台**：输入契约 → 当前逻辑 → 依赖交接；侧栏定位文件与步骤，支持逐步播放、速度和重置。
 - **数据工作台**：编辑演示 JSON，观察支持的 copy / rename / literal / object / array 投影。
 - **字段血缘与差异**：追溯局部 const 别名，比较输入与输出对象的形态。
 - **源码证据**：相对路径、原始行号、SHA-256、尽力脱敏的代码摘录与诊断。
-- **独立导出**：JSON、质量报告、单文件 HTML；HTML 可双击离线打开。
+- **可信度摘要**：区分源码事实、静态匹配、推断节点、未知关系与限制项，不用未知项填高覆盖率。
+- **分级导出**：完整内部版、脱敏评审版、业务演示版；JSON 与单文件 HTML 使用同一策略，下载前确认清单及风险。
 - **本地优先**：不调用外部 AI、不执行源码、不连接业务数据库。
 
 ## 快速开始
@@ -24,6 +25,8 @@ Local-first, evidence-backed visualization for Java, JavaScript and TypeScript. 
 需要 **Node.js 22+**。
 
 ```bash
+git clone https://github.com/CCdddbb/code-flow-studio.git
+cd code-flow-studio
 npm ci
 npm start
 ```
@@ -41,41 +44,54 @@ PowerShell：`$env:PORT=4180; npm start`。
 ### 体验数据变化
 
 1. 在订单示例中点击「下一步」，选择 `toEnvelope`。
-2. 切到「数据变化」，修改 `input.customer` 或 `input.amount`，点击「应用修改」。
+2. 切到「数据转换」，修改 `input.customer` 或 `input.amount`，点击「应用修改」。
 3. 核对返回对象、字段血缘、结构差异与源码证据。
-4. 点击「导出页面」，下载独立 HTML。
+4. 点击「导出页面」，选择导出级别，核对清单并确认风险后下载独立 HTML。
+
+默认评审版不包含转换、条件和字面量，因此不重算数据投影。需要保留本机工作台的源码与投影时，主动选择「完整内部版」。
 
 每个步骤独立使用自己的演示入参；系统**不假装自动执行调用链或传递真实运行值**。
 
 ## 命令行生成
 
 ```bash
-npm run analyze -- fixtures/typescript --out artifacts/order
-npm run analyze -- fixtures/java --entry DraftService.submit --out artifacts/java
-npm run analyze -- /path/to/module --entry MyService.submit --out /path/to/output
+npm run analyze -- fixtures/typescript --out artifacts/v02-order --mode review --acknowledge-risk
+npm run analyze -- fixtures/java --entry DraftService.submit --out artifacts/v02-business --mode business --acknowledge-risk
+npm run analyze -- /path/to/module --entry MyService.submit --out /path/to/new-output --mode internal --acknowledge-risk
 ```
 
 输出：
 
 ```text
 index.html      # 独立交互页面，双击可打开
-analysis.json   # 可校验的中间模型与证据
-report.json     # 覆盖情况、未解析项与限制
+analysis.json   # 当前级别的模型（review/business 为 share-1.0.0）
+report.json     # 质量计数与固定边界说明，不夹带原始诊断
+manifest.json   # 导出级别、包含/移除清单与风险
 ```
 
-`--entry` 支持符号名或唯一 ID；同名入口须使用 ID。`--name` 可指定展示名称。输出目录必须在源码目录之外。分析不运行输入工程的构建/安装脚本。
+`--entry` 支持符号名或唯一 ID；同名入口须使用 ID。`--name` 可指定展示名称。输出目录必须在源码目录之外且为空；拒绝覆盖旧包，防止旧源码文件残留。CLI 先打印内容清单；所有级别均需传 `--acknowledge-risk` 确认权限与风险，不传时只显示清单并退出。分析不运行输入工程的构建/安装脚本。
 
 ### 证据是否陈旧
 
 ```bash
-npm run evidence -- fixtures/typescript artifacts/order/analysis.json
+npm run evidence -- fixtures/typescript artifacts/v02-order/analysis.json
 ```
 
-返回 `valid` / `stale` / `missing`；陈旧或缺失时退出码为 1。校验不会修改源码或静默更新证据。源码变更后需要重新分析。
+返回 `valid` / `stale` / `missing`；陈旧或缺失时退出码为 1。校验不会修改源码或静默更新证据。源码变更后需要重新分析。内部版与评审版可核验；业务版不含文件与证据元数据，不能核验。
+
+### 三种分享级别
+
+| 级别 | 保留 | 删除 |
+| --- | --- | --- |
+| 完整内部版 | 原分析模型、源码证据、投影与诊断 | 无；尽力脱敏不能保证无秘密 |
+| 脱敏评审版（默认） | 流程、字段、相对文件位置、SHA-256 摘要、质量计数 | 源码正文、条件/转换、字面量、原始诊断及自由文本 |
+| 业务演示版 | 流程、字段结构、依据标识、质量计数 | 进一步删除文件路径、行号、源码摘要 |
+
+无源码模式通过独立 Schema 与字段白名单重建，不只是隐藏页面源码。分享包不包含临时编辑输入；离线页只能重新导出原始快照及当前级别，不能恢复被移除的信息。文件名、符号名及字段名仍可能敏感，三种模式均需授权与人工审查。状态和人工确认说明尚无模型，不补造业务解释。
 
 ## 支持范围
 
-| 能力 | v0.1.0 |
+| 能力 | v0.2.0（本机内部分析） |
 | --- | --- |
 | JS/TS 解析 | TypeScript AST；函数、方法、接口/类型字面量、调用表达式、if 条件 |
 | JS/TS 引用解析 | 同文件可见命名函数、this 方法、相对路径显式命名导入 |
@@ -102,7 +118,7 @@ npm audit
 
 macOS 有 Google Chrome 时自动使用；其他已有浏览器可通过 `CHROME_PATH` 指定。首次安装 Chromium 需要网络。
 
-当前本地验收：**36 个 Node 测试 + 12 项浏览器检查通过**。包括上传、JSON 修改、字段血缘、Java 边界、离线导出、脚本注入防护和 390px 窄屏。详见 [交付与迭代记录](docs/04-delivery-report.md)。GitHub CI 已配置，但需推送后才会实际运行。
+当前本地验收：**50 个 Node 测试 + 17 项浏览器检查通过**。包括三种导出策略、源码泄漏哨兵、确认门禁、并发隔离、两种语言的离线回放、旧功能回归及 390px 窄屏。详见 [第一轮迭代设计与验收](docs/07-v02-iteration-report.md)。远程 CI 状态请查看 [GitHub Actions](https://github.com/CCdddbb/code-flow-studio/actions)，本地通过不等同于远程通过。
 
 ## 项目结构
 
@@ -119,12 +135,15 @@ docs/            方案、实际模型说明、交付报告、公开截图
 
 架构：`代码 → 静态事实/证据 → 校验模型 → 受限模拟 → 通用页面`。浏览器 UI 使用原生 ES Modules，无框架或远程 CDN；分析使用 TypeScript 与 Ajv。
 
-- [实际模型与 API](docs/05-implementation.md)
+- [更新日志与 v0.2.0 兼容性提示](CHANGELOG.md)
+- [工作台 UI 重设计与开源参考](docs/08-ui-redesign.md)
+- [v0.2 第一轮迭代设计与验收](docs/07-v02-iteration-report.md)
+- [v0.1 历史模型与 API](docs/05-implementation.md)
 - [产品迭代计划（v0.1.0 → v1.0）](docs/06-product-iteration-plan.md)
 - [初始方案](docs/01-project-plan.md) / [契约草案](docs/02-analysis-contract.md) / [历史迭代路线](docs/03-iteration-backlog.md)
 - [贡献指南](CONTRIBUTING.md) / [安全说明](SECURITY.md)
 
-## 上传 GitHub
+## 仓库与贡献
 
 公开前确认没有私有源码、真实分析产物、密钥和连接配置。`node_modules/`、`artifacts/`、本地源码等已忽略。
 
@@ -140,7 +159,7 @@ git push -u origin main
 
 可选 GitHub Pages：在仓库 Settings → Pages 中选择 **GitHub Actions**，手动运行 `Publish synthetic demo to Pages`。它只发布自建订单示例的离线页；**Pages 不提供上传分析服务**，新代码分析仍需本地 `npm start`。
 
-本项目未自动创建远程仓库或上传任何文件。
+官方仓库：[CCdddbb/code-flow-studio](https://github.com/CCdddbb/code-flow-studio)。功能更新和兼容性变化记录在 [CHANGELOG.md](CHANGELOG.md)。分析产物不随源码提交；请勿将内部项目的导出包加入公开仓库。
 
 ## 后续方向
 

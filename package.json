@@ -1,6 +1,6 @@
 {
   "name": "code-flow-studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "license": "MIT",
   "description": "Local-first, evidence-backed code and data-flow visualization",

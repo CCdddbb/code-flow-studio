@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://code-flow-studio.example/schema/share-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "sharing", "quality", "project", "sourceSnapshot", "dataMode", "entryStepId", "entries", "entities", "steps", "flows", "contracts", "evidence", "diagnostics", "presentation", "report"],
+  "properties": {
+    "schemaVersion": { "const": "share-1.0.0" },
+    "sharing": { "type": "object", "required": ["mode"], "properties": { "mode": { "enum": ["review", "business"] } }, "additionalProperties": false },
+    "quality": { "type": "object", "required": ["sourceSteps", "evidencedSteps", "totalRelations", "staticMatches", "inferredNodes", "unknownRelations", "confirmedNodes", "limitationCount"], "properties": { "sourceSteps": { "type": "integer", "minimum": 0 }, "evidencedSteps": { "type": "integer", "minimum": 0 }, "totalRelations": { "type": "integer", "minimum": 0 }, "staticMatches": { "type": "integer", "minimum": 0 }, "inferredNodes": { "type": "integer", "minimum": 0 }, "unknownRelations": { "type": "integer", "minimum": 0 }, "confirmedNodes": { "type": "integer", "minimum": 0 }, "limitationCount": { "type": "integer", "minimum": 0 } }, "additionalProperties": false },
+    "project": { "$ref": "https://code-flow-studio.example/schema/analysis-v1.json#/properties/project" },
+    "sourceSnapshot": { "anyOf": [{ "type": "null" }, { "$ref": "https://code-flow-studio.example/schema/analysis-v1.json#/properties/sourceSnapshot" }] },
+    "dataMode": { "const": "mock" },
+    "entryStepId": { "type": "string" },
+    "entries": { "type": "array", "minItems": 1, "maxItems": 40, "items": { "type": "object", "additionalProperties": false, "required": ["id", "label", "file", "line", "preferred"], "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "file": { "type": ["string", "null"] }, "line": { "type": ["integer", "null"] }, "preferred": { "type": "boolean" } } } },
+    "entities": { "$ref": "https://code-flow-studio.example/schema/analysis-v1.json#/properties/entities" },
+    "steps": { "type": "array", "minItems": 1, "maxItems": 40, "items": { "type": "object", "additionalProperties": false, "required": ["id", "label", "entityId", "basis", "file", "line", "evidenceIds", "parameters", "transforms", "guards", "transaction", "parser"], "properties": {
+      "id": { "type": "string" }, "label": { "type": "string" }, "entityId": { "type": "string" }, "basis": { "$ref": "https://code-flow-studio.example/schema/analysis-v1.json#/definitions/basis" }, "file": { "type": ["string", "null"] }, "line": { "type": ["integer", "null"] },
+      "evidenceIds": { "type": "array", "items": { "type": "string" } }, "parameters": { "$ref": "https://code-flow-studio.example/schema/analysis-v1.json#/properties/steps/items/properties/parameters" }, "transforms": { "type": "array", "maxItems": 0 }, "guards": { "type": "array", "maxItems": 0 }, "transaction": { "type": "null" }, "parser": { "enum": ["typescript-ast", "java-lexical"] }
+    } } },
+    "flows": { "type": "array", "maxItems": 8000, "items": { "type": "object", "additionalProperties": false, "required": ["id", "from", "to", "label", "basis", "resolution", "evidenceId", "line"], "properties": { "id": { "type": "string" }, "from": { "type": "string" }, "to": { "type": "string" }, "label": { "type": "string" }, "basis": { "$ref": "https://code-flow-studio.example/schema/analysis-v1.json#/definitions/basis" }, "resolution": { "enum": ["static-local", "static-declared-reference", "unresolved"] }, "evidenceId": { "type": ["string", "null"] }, "line": { "type": ["integer", "null"] } } } },
+    "contracts": { "type": "array", "maxItems": 2000, "items": { "type": "object", "additionalProperties": false, "required": ["id", "name", "fields", "line", "file", "evidenceIds"], "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "fields": { "$ref": "https://code-flow-studio.example/schema/analysis-v1.json#/properties/contracts/items/properties/fields" }, "line": { "type": ["integer", "null"] }, "file": { "type": ["string", "null"] }, "evidenceIds": { "type": "array", "items": { "type": "string" } } } } },
+    "evidence": { "type": "array", "maxItems": 10000, "items": { "type": "object", "additionalProperties": false, "required": ["id", "file", "startLine", "endLine", "fileHash", "excerptHash"], "properties": { "id": { "type": "string" }, "file": { "type": "string" }, "startLine": { "type": "integer" }, "endLine": { "type": "integer" }, "fileHash": { "$ref": "https://code-flow-studio.example/schema/analysis-v1.json#/definitions/hash" }, "excerptHash": { "$ref": "https://code-flow-studio.example/schema/analysis-v1.json#/definitions/hash" } } } },
+    "diagnostics": { "type": "array", "maxItems": 0 },
+    "presentation": { "$ref": "https://code-flow-studio.example/schema/analysis-v1.json#/properties/presentation" },
+    "report": { "$ref": "https://code-flow-studio.example/schema/analysis-v1.json#/properties/report" }
+  }
+}

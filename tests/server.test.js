@@ -8,7 +8,7 @@ after(async () => { await new Promise(resolve => server.close(resolve)); });
 const input = { files: [{ name: 'a.ts', content: 'export function run(x: string) { return { value: x }; }' }] };
 const post = (url, body, headers = {}) => fetch(base + url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Studio-Token': token, ...headers }, body: typeof body === 'string' ? body : JSON.stringify(body) });
 test('workbench and built-in examples work without filesystem input from the client', async () => {
-  const res = await fetch(base); assert.equal(res.status, 200); assert.match(await res.text(), /数据旅程/);
+  const res = await fetch(base); assert.equal(res.status, 200); assert.match(await res.text(), /分析结果/);
   const java = await (await fetch(base + '/api/demo/java')).json(); assert.equal(java.model.steps.length, 2);
 });
 test('local upload returns a validated model and never invokes source', async () => {
@@ -30,8 +30,23 @@ test('invalid JSON, invalid model and incorrect content type return useful error
 test('static file allowlist prevents reading arbitrary project files', async () => {
   for (const url of ['/package.json', '/src/server.js', '/api/source?path=/etc/passwd', '/.git/config']) assert.equal((await fetch(base + url)).status, 404);
 });
+test('export preview, confirmation, default review and business JSON enforce policy', async () => {
+  const model = await (await post('/api/analyze', input)).json();
+  const preview = await (await post('/api/export/preview', { model })).json();
+  assert.equal(preview.mode, 'review'); assert.equal(preview.requiresConfirmation, true);
+  assert.equal((await post('/api/export', { model })).status, 400);
+  for (const mode of ['review', 'business']) {
+    const response = await post('/api/export', { model, mode, format: 'json', confirmed: true });
+    assert.equal(response.status, 200);
+    const shared = await response.json(); assert.equal(shared.sharing.mode, mode);
+    assert.ok(!JSON.stringify(shared).includes('return { value: x }'));
+    if (mode === 'business') assert.equal(shared.sourceSnapshot, null);
+  }
+  assert.equal((await post('/api/export', { model, mode: 'bad', confirmed: true })).status, 400);
+  assert.equal((await post('/api/export', { model, format: 'script', confirmed: true })).status, 400);
+});
 test('standalone export embeds inert JSON and contains no external assets', async () => {
   const model = await (await post('/api/analyze', { files: [{ name: 'x.ts', content: 'export function run() { return "</script><script>globalThis.pwned=true</script>"; }' }] })).json();
-  const res = await post('/api/export', { model }); assert.equal(res.status, 200);
+  const res = await post('/api/export', { model, mode: 'internal', confirmed: true }); assert.equal(res.status, 200);
   const html = await res.text(); assert.match(html, /embedded-model/); assert.match(html, /\\u003c\/script/); assert.ok(!html.includes('src="./app.js"')); assert.ok(!html.includes('href="./style.css"'));
 });

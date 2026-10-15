@@ -15,7 +15,7 @@ This is a **local desktop development tool**, not a multi-tenant or public uploa
 
 ## Important limitations
 
-Redaction is **best effort**, not a secret-scanning guarantee. Arbitrary secrets in unrecognized strings/comments may remain. JSON and HTML exports contain source excerpts. Review them before sharing, and do not analyze code you are not authorized to disclose. File hashes are not anonymization.
+Redaction is **best effort**, not a secret-scanning guarantee. Arbitrary secrets in unrecognized strings/comments may remain. Internal JSON and HTML exports contain source excerpts. v0.2 defaults to review exports, rebuilt through an allowlist with no source bodies, expression literals or raw diagnostics; business exports additionally omit paths and fingerprints. Metadata names may still be confidential. All modes require review and authorization before sharing. Do not analyze code you are not authorized to disclose. File hashes are not anonymization.
 
 Runtime source buffers may remain in Node/browser process memory until garbage-collected. This tool is not a hardened confidential-computing environment. Directory reads are not an atomic snapshot of a concurrently changing repository; stop editing source while generating or verifying evidence.
 

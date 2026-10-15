@@ -101,7 +101,7 @@ export function analyze(input, { entry, name = '代码分析' } = {}) {
     dataMode: 'mock', entryStepId: root.id,
     entries: functions.map(f => ({ id: f.id, label: f.symbol, file: f.file, line: f.line, preferred: f.entry })),
     entities, steps, flows, contracts, evidence, diagnostics,
-    presentation: { layout: 'assembly', playback: 'static-outline', theme: 'midnight' },
+    presentation: { layout: 'assembly', playback: 'static-outline', theme: 'light' },
     report: { files: files.length, functions: functions.length, outlinedFunctions: steps.length, unresolvedCalls: flows.filter(f => f.resolution === 'unresolved').length, sourceStepsWithEvidence: steps.filter(s => s.evidenceIds.length).length, limitations: ['静态展开包含条件分支里的调用，不是实际执行顺序或执行追踪。', '静态声明引用不证明运行时绑定；命名推断不证明表名、事务范围、幂等性或恢复。', '仅 TS/JS 的直线 const/return 支持受限投影；Java 不自动求值。', '证据已进行尽力脱敏，导出前仍须人工审查。'] }
   };
   return assertModel(model);
