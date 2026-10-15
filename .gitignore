@@ -1,0 +1,12 @@
+node_modules/
+artifacts/
+site/
+coverage/
+.DS_Store
+.env
+.env.*
+*.log
+*.pem
+*.key
+uploads/
+local-source/
