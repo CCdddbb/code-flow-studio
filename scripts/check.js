@@ -10,5 +10,5 @@ for (const dir of ['src', 'public', 'scripts', 'tests']) {
     if (result.status !== 0) { console.error(result.stderr); process.exit(1); } count++;
   }
 }
-for (const item of ['package.json', 'schema/analysis.schema.json', 'schema/share.schema.json']) JSON.parse(await readFile(path.join(ROOT, item), 'utf8'));
+for (const item of ['package.json', 'schema/analysis.schema.json', 'schema/share.schema.json', 'schema/scenario.schema.json']) JSON.parse(await readFile(path.join(ROOT, item), 'utf8'));
 console.log(`Syntax checked: ${count} scripts + JSON schema/package`);

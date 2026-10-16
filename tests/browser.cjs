@@ -89,6 +89,42 @@ const { pathToFileURL } = require('node:url');
       assert.match(await page.locator('#output-json').innerText(), /未生成/);
       await page.click('#sample-button');
     });
+    await check('authored draft scenarios disclose provenance and show state and storage changes', async () => {
+      await page.click('[data-tab="scenario"]');
+      assert.match(await page.locator('#scenario-context').innerText(), /源码分析无关联/);
+      assert.match(await page.locator('#scenario-state').innerText(), /可编辑 → 已冻结/);
+      assert.equal(await page.locator('#scenario-stores pre').count(), 4);
+      assert.match(await page.locator('#scenario-mutations').innerText(), /increment/);
+      await page.click('#scenario-next'); await page.click('#scenario-next');
+      assert.match(await page.locator('#scenario-state').innerText(), /已提交/);
+      assert.match(await page.locator('#scenario-mutations').innerText(), /unset/);
+      assert.match(await page.locator('#scenario-boundaries').innerText(), /不得视为单一强事务/);
+      await page.screenshot({ path: path.join(ROOT, 'artifacts/screenshots/studio-scenarios.png'), fullPage: true });
+    });
+    await check('conflict, failure and recovery paths never invent rollback or duplicate writes', async () => {
+      await page.selectOption('#scenario-path', 'version-conflict');
+      assert.equal(await page.locator('#scenario-next').isDisabled(), true);
+      assert.match(await page.locator('#scenario-state').innerText(), /版本拒绝/);
+      assert.match(await page.locator('#scenario-mutations').innerText(), /没有模拟存储变化/);
+      await page.selectOption('#scenario-path', 'receipt-timeout');
+      await page.locator('#scenario-timeline button').last().click();
+      assert.match(await page.locator('#scenario-stores').innerText(), /PENDING_CONFIRMATION/);
+      assert.match(await page.locator('#scenario-stores').innerText(), /synthetic-submission/);
+      await page.selectOption('#scenario-path', 'receipt-recovery');
+      await page.locator('#scenario-timeline button').last().click();
+      assert.match(await page.locator('#scenario-state').innerText(), /待确认 → 已提交/);
+      assert.ok(!(await page.locator('#scenario-mutations').innerText()).includes('正式提交逻辑存储'));
+    });
+    await check('same scenario renderer supports a second domain and resets navigation', async () => {
+      await page.selectOption('#scenario-reference', '1');
+      assert.equal(await page.locator('#scenario-path').inputValue(), 'dispatch-success');
+      assert.match(await page.locator('#scenario-state').innerText(), /新建 → 已接受/);
+      await page.selectOption('#scenario-path', 'dispatch-recovery');
+      await page.locator('#scenario-timeline button').last().click();
+      assert.match(await page.locator('#scenario-state').innerText(), /待确认 → 已交付/);
+      await page.click('#scenario-reset');
+      assert.equal(await page.locator('#scenario-previous').isDisabled(), true);
+    });
     await check('evidence includes original line ranges and SHA-256 fingerprints', async () => {
       await page.click('[data-tab="evidence"]'); assert.ok(await page.locator('.evidence-card').count() >= 4);
       assert.match(await page.locator('.evidence-card').first().innerText(), /SHA-256/);
@@ -167,6 +203,11 @@ const { pathToFileURL } = require('node:url');
             await offline.click('#quality-panel > summary');
             assert.match(await offline.locator('#evidence-scope').innerText(), /无法独立核验/);
           }
+          await offline.click('[data-tab="scenario"]');
+          assert.match(await offline.locator('#scenario-context').innerText(), /源码分析无关联/);
+          await offline.selectOption('#scenario-path', 'receipt-recovery');
+          await offline.locator('#scenario-timeline button').last().click();
+          assert.match(await offline.locator('#scenario-state').innerText(), /待确认 → 已提交/);
           assert.deepEqual(requests, []); assert.deepEqual(failures, []);
           await offline.close();
         }
@@ -195,6 +236,16 @@ const { pathToFileURL } = require('node:url');
       assert.equal(await page.locator('#workspace-sidebar').isVisible(), true); await page.keyboard.press('Escape');
       assert.equal(await page.locator('#sidebar-toggle').getAttribute('aria-expanded'), 'false');
       await page.click('#hero-upload'); assert.ok(await page.evaluate(() => document.querySelector('dialog').getBoundingClientRect().right <= innerWidth)); await page.click('#upload-close');
+    });
+    await check('reference scenarios remain usable at 390px without page overflow', async () => {
+      await page.click('[data-tab="scenario"]');
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+      await page.selectOption('#scenario-reference', '0');
+      await page.selectOption('#scenario-path', 'receipt-recovery');
+      await page.locator('#scenario-timeline button').last().click();
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+      await page.click('#scenario-reset');
+      assert.equal(await page.locator('#scenario-previous').isDisabled(), true);
     });
     await check('browser does not call external services and has no script exceptions', async () => { assert.deepEqual(external, []); assert.deepEqual(errors, []); });
     await writeFile(path.join(ROOT, 'artifacts/browser-report.json'), JSON.stringify({ passed: results.length, checks: results }, null, 2));

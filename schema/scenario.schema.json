@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://code-flow.local/scenario.schema.json",
+  "title": "Authored reference scenario (not source analysis)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "title", "basis", "assumptions", "states", "initialState", "stores", "transitions", "scenarios", "transactionRegions"],
+  "properties": {
+    "schemaVersion": { "const": "scenario-1.0.0" },
+    "id": { "$ref": "#/definitions/id" },
+    "title": { "$ref": "#/definitions/text" },
+    "basis": { "const": "authored-assumption" },
+    "initialState": { "$ref": "#/definitions/id" },
+    "assumptions": { "type": "array", "minItems": 1, "maxItems": 100, "items": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "basis", "author", "revision", "statement"],
+      "properties": { "id": { "$ref": "#/definitions/id" }, "basis": { "const": "authored-assumption" }, "author": { "$ref": "#/definitions/text" }, "revision": { "type": "integer", "minimum": 1 }, "statement": { "$ref": "#/definitions/text" } }
+    } },
+    "states": { "type": "array", "minItems": 1, "maxItems": 100, "items": {
+      "type": "object", "additionalProperties": false, "required": ["id", "label", "terminal"],
+      "properties": { "id": { "$ref": "#/definitions/id" }, "label": { "$ref": "#/definitions/text" }, "terminal": { "type": "boolean" } }
+    } },
+    "stores": { "type": "array", "minItems": 1, "maxItems": 100, "items": {
+      "type": "object", "additionalProperties": false, "required": ["id", "label", "kind", "initial"],
+      "properties": { "id": { "$ref": "#/definitions/id" }, "label": { "$ref": "#/definitions/text" }, "kind": { "enum": ["document", "relational", "queue"] }, "initial": { "type": "object" } }
+    } },
+    "transitions": { "type": "array", "maxItems": 100, "items": {
+      "type": "object", "additionalProperties": false, "required": ["id", "from", "to", "condition"],
+      "properties": { "id": { "$ref": "#/definitions/id" }, "from": { "$ref": "#/definitions/id" }, "to": { "$ref": "#/definitions/id" }, "condition": { "$ref": "#/definitions/text" } }
+    } },
+    "transactionRegions": { "type": "array", "maxItems": 100, "items": {
+      "type": "object", "additionalProperties": false, "required": ["id", "label", "storeIds", "atomicity"],
+      "properties": { "id": { "$ref": "#/definitions/id" }, "label": { "$ref": "#/definitions/text" }, "storeIds": { "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/definitions/id" } }, "atomicity": { "const": "unverified" } }
+    } },
+    "scenarios": { "type": "array", "minItems": 1, "maxItems": 100, "items": {
+      "type": "object", "additionalProperties": false, "required": ["id", "label", "kind", "steps"],
+      "properties": { "id": { "$ref": "#/definitions/id" }, "label": { "$ref": "#/definitions/text" }, "kind": { "enum": ["success", "rejected", "failure", "recovery"] }, "steps": { "type": "array", "minItems": 1, "maxItems": 100, "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "label", "basis", "transitionId", "mutations"],
+        "properties": { "id": { "$ref": "#/definitions/id" }, "label": { "$ref": "#/definitions/text" }, "basis": { "const": "authored-assumption" }, "transitionId": { "anyOf": [{ "$ref": "#/definitions/id" }, { "type": "null" }] }, "mutations": { "type": "array", "maxItems": 100, "items": {
+          "type": "object", "additionalProperties": false, "required": ["storeId", "field", "op"],
+          "properties": { "storeId": { "$ref": "#/definitions/id" }, "field": { "type": "string", "minLength": 1, "maxLength": 100 }, "op": { "enum": ["set", "unset", "increment"] }, "value": {} },
+          "allOf": [{ "if": { "properties": { "op": { "enum": ["set", "increment"] } } }, "then": { "properties": { "value": {} }, "required": ["value"] } }, { "if": { "properties": { "op": { "const": "increment" } } }, "then": { "properties": { "value": { "type": "number" } } } }]
+        } } }
+      } } }
+    } }
+  },
+  "definitions": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 2000 }
+  }
+}

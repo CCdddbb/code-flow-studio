@@ -8,7 +8,7 @@ import { scanDirectory, LIMITS } from './safety.js';
 import { renderStandalone, ROOT } from './export.js';
 import { prepareExport, manifestFor } from './sharing.js';
 
-const staticFiles = new Map([['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']], ['/style.css', ['style.css', 'text/css']], ['/app.js', ['app.js', 'text/javascript']], ['/simulation.js', ['simulation.js', 'text/javascript']], ['/quality.js', ['quality.js', 'text/javascript']]]);
+const staticFiles = new Map([['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']], ['/style.css', ['style.css', 'text/css']], ['/app.js', ['app.js', 'text/javascript']], ['/simulation.js', ['simulation.js', 'text/javascript']], ['/quality.js', ['quality.js', 'text/javascript']], ['/scenarios.js', ['scenarios.js', 'text/javascript']]]);
 const loopback = new Set(['localhost', '127.0.0.1', '[::1]']);
 export function createServer() {
   const token = randomBytes(32).toString('hex');
@@ -26,7 +26,7 @@ export function createServer() {
         const [file, type] = staticFiles.get(url.pathname);
         send(200, await readFile(path.join(ROOT, 'public', file), 'utf8'), type); return;
       }
-      if (req.method === 'GET' && url.pathname === '/api/config') { send(200, { token, limits: LIMITS, version: '0.2.0' }); return; }
+      if (req.method === 'GET' && url.pathname === '/api/config') { send(200, { token, limits: LIMITS, version: '0.3.0-alpha.1' }); return; }
       if (req.method === 'GET' && /^\/api\/demo\/(typescript|java)$/.test(url.pathname)) {
         const kind = url.pathname.split('/').pop();
         const { files } = await scanDirectory(path.join(ROOT, 'fixtures', kind));

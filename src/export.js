@@ -8,8 +8,8 @@ import { qualitySummary } from '../public/quality.js';
 export const ROOT = fileURLToPath(new URL('../', import.meta.url));
 export async function renderStandalone(payload) {
   if (payload.schemaVersion === 'share-1.0.0') assertSharedModel(payload); else assertModel(payload);
-  const [html, css, simulation, quality, app] = await Promise.all(['index.html', 'style.css', 'simulation.js', 'quality.js', 'app.js'].map(name => readFile(path.join(ROOT, 'public', name), 'utf8')));
-  const bundle = `${simulation.replace(/^export /gm, '')}\n${quality.replace(/^export /gm, '')}\n${app.replace(/^import .*?;\s*\n/gm, '')}`.replace(/<\/script/gi, '<\\/script');
+  const [html, css, simulation, quality, scenarios, app] = await Promise.all(['index.html', 'style.css', 'simulation.js', 'quality.js', 'scenarios.js', 'app.js'].map(name => readFile(path.join(ROOT, 'public', name), 'utf8')));
+  const bundle = `${simulation.replace(/^export /gm, '')}\n${quality.replace(/^export /gm, '')}\n${scenarios.replace(/^export /gm, '')}\n${app.replace(/^import .*?;\s*\n/gm, '')}`.replace(/<\/script/gi, '<\\/script');
   const json = JSON.stringify(payload).replaceAll('<', '\\u003c').replaceAll('\u2028', '\\u2028').replaceAll('\u2029', '\\u2029');
   return html.replace('<link rel="stylesheet" href="./style.css">', `<style>${css}</style>`)
     .replace('<script type="module" src="./app.js"></script>', `<script id="embedded-model" type="application/json">${json}</script>\n<script>\n(function(){\n${bundle}\n})();\n</script>`);

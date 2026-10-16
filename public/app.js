@@ -1,5 +1,6 @@
 import { sampleInput, project, differences, mappings } from './simulation.js';
 import { BASIS, qualitySummary, reviewAdvice, EXPORT_MODES } from './quality.js';
+import { REFERENCE_SCENARIOS, runScenario } from './scenarios.js';
 
 const $ = id => document.getElementById(id);
 const state = { model: null, files: null, index: 0, playing: false, timer: null, token: null, tab: 'assembly', selectedFiles: [], offline: !!document.getElementById('embedded-model'), request: 0 };
@@ -92,8 +93,48 @@ function selectStep(index) { stop(); state.index = Math.max(0, Math.min(state.mo
 function setTab(tab) {
   state.tab = tab;
   for (const button of document.querySelectorAll('[data-tab]')) { button.classList.toggle('active', button.dataset.tab === tab); button.setAttribute('aria-selected', String(button.dataset.tab === tab)); button.tabIndex = button.dataset.tab === tab ? 0 : -1; }
-  for (const name of ['assembly', 'data', 'evidence']) $(`${name}-view`).hidden = name !== tab;
+  for (const name of ['assembly', 'data', 'scenario', 'evidence']) $(`${name}-view`).hidden = name !== tab;
   if (tab !== 'assembly') stop();
+}
+const scenarioUI = { reference: 0, pathId: null, index: 0 };
+function renderScenario(reset = false) {
+  const model = REFERENCE_SCENARIOS[scenarioUI.reference];
+  if (reset || !model.scenarios.some(path => path.id === scenarioUI.pathId)) { scenarioUI.pathId = model.scenarios[0].id; scenarioUI.index = 0; }
+  $('scenario-reference').replaceChildren(...REFERENCE_SCENARIOS.map((item, i) => { const option = node('option', '', item.title); option.value = i; return option; }));
+  $('scenario-reference').value = scenarioUI.reference;
+  const kindLabels = { success: '成功', rejected: '拒绝', failure: '失败 / 未知', recovery: '恢复' };
+  $('scenario-path').replaceChildren(...model.scenarios.map(path => { const option = node('option', '', `${kindLabels[path.kind]} · ${path.label}`); option.value = path.id; return option; }));
+  $('scenario-path').value = scenarioUI.pathId;
+  const frames = runScenario(model, scenarioUI.pathId);
+  scenarioUI.index = Math.max(0, Math.min(scenarioUI.index, frames.length - 1));
+  const frame = frames[scenarioUI.index], stateLabel = id => model.states.find(item => item.id === id).label;
+  $('scenario-timeline').replaceChildren(...frames.map((item, i) => {
+    const button = node('button', i === scenarioUI.index ? 'active' : '', `${i + 1}. ${item.label}`);
+    button.setAttribute('aria-current', i === scenarioUI.index ? 'step' : 'false');
+    button.addEventListener('click', () => { scenarioUI.index = i; renderScenario(); }); return button;
+  }));
+  $('scenario-state').textContent = `${stateLabel(frame.fromState)} → ${stateLabel(frame.toState)}`;
+  $('scenario-condition').textContent = `${frame.condition}。条件来自作者指定的路径，不由引擎求值。`;
+  $('scenario-position').textContent = `${scenarioUI.index + 1} / ${frames.length} · ${frame.label}`;
+  $('scenario-previous').disabled = scenarioUI.index === 0;
+  $('scenario-next').disabled = scenarioUI.index === frames.length - 1;
+  $('scenario-stores').replaceChildren(...model.stores.map(store => {
+    const card = node('article', 'scenario-store');
+    const title = node('h3', '', store.label); title.append(node('span', 'badge mock', '合成数据'));
+    const grid = node('div', 'scenario-snapshots');
+    for (const [label, value] of [['Before', frame.before[store.id]], ['After', frame.after[store.id]]]) {
+      const pane = node('div'); pane.append(node('h4', '', label), node('pre', '', pretty(value))); grid.append(pane);
+    }
+    card.append(title, grid); return card;
+  }));
+  $('scenario-mutations').replaceChildren(...frame.mutations.map(mutation => {
+    const row = node('div', 'mapping-row');
+    row.append(node('code', '', mutation.op), node('span', '', `${model.stores.find(store => store.id === mutation.storeId).label}.${mutation.field}`), node('code', '', mutation.op === 'unset' ? '移除字段' : pretty(mutation.value))); return row;
+  }));
+  if (!frame.mutations.length) $('scenario-mutations').append(node('div', 'empty-note', '此步没有模拟存储变化；不自动回滚或补造记录。'));
+  $('scenario-boundaries').replaceChildren(...model.transactionRegions.map(region => node('p', 'section-note', `${region.label}：${region.storeIds.map(id => model.stores.find(store => store.id === id).label).join(' / ')}。原子性未验证；不得视为单一强事务。`)));
+  $('scenario-assumptions').replaceChildren(...model.assumptions.map(item => node('p', 'section-note', `人工假设 · ${item.author} · 修订 ${item.revision}：${item.statement}`)));
+  $('scenario-context').textContent = `独立参考案例：${model.title}。与当前「${state.model.project.name}」的源码分析无关联；本视图不增加源码事实或已确认覆盖率。`;
 }
 function installModel(model, files = null) {
   if (!['1.0.0', 'share-1.0.0'].includes(model.schemaVersion) || !Array.isArray(model.steps) || !model.steps.length) throw new Error('Unsupported visualization model');
@@ -121,7 +162,7 @@ function installModel(model, files = null) {
   $('limitations').replaceChildren(...model.report.limitations.map(item => node('li', '', item)));
   $('diagnostic-summary').textContent = `${model.diagnostics.length} 条诊断 · ${model.report.unresolvedCalls} 个未解析调用 · 全部保留在证据视图`;
   $('snapshot-badge').textContent = model.sourceSnapshot ? `SNAPSHOT ${model.sourceSnapshot.id.slice(0, 10)}` : '无源码元数据';
-  renderProjectNavigation(model); renderQuality(); renderEvidence(); renderStep();
+  renderProjectNavigation(model); renderQuality(); renderEvidence(); renderStep(); renderScenario();
   $('play-button').disabled = model.steps.length < 2;
 }
 function renderStep() {
@@ -309,6 +350,11 @@ $('dropzone').addEventListener('dragover', event => { event.preventDefault(); $(
 $('dropzone').addEventListener('dragleave', () => $('dropzone').classList.remove('dragging'));
 $('dropzone').addEventListener('drop', event => { event.preventDefault(); $('dropzone').classList.remove('dragging'); selectFiles(event.dataTransfer.files); });
 $('home-button').addEventListener('click', () => { setTab('assembly'); setSidebar(false); });
+$('scenario-reference').addEventListener('change', event => { scenarioUI.reference = Number(event.target.value); renderScenario(true); });
+$('scenario-path').addEventListener('change', event => { scenarioUI.pathId = event.target.value; scenarioUI.index = 0; renderScenario(); });
+$('scenario-previous').addEventListener('click', () => { scenarioUI.index--; renderScenario(); });
+$('scenario-next').addEventListener('click', () => { scenarioUI.index++; renderScenario(); });
+$('scenario-reset').addEventListener('click', () => { scenarioUI.index = 0; renderScenario(); });
 $('play-button').addEventListener('click', play);
 $('previous-button').addEventListener('click', () => selectStep(state.index - 1));
 $('next-button').addEventListener('click', () => selectStep(state.index + 1));
@@ -337,8 +383,11 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Escape') setSidebar(false);
   if (!state.model || $('upload-dialog').open || $('export-dialog').open || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'SUMMARY'].includes(document.activeElement.tagName)) return;
   if (event.code === 'Space' && state.tab === 'assembly') { event.preventDefault(); play(); }
-  if (event.key === 'ArrowRight') { event.preventDefault(); selectStep(state.index + 1); }
-  if (event.key === 'ArrowLeft') { event.preventDefault(); selectStep(state.index - 1); }
+  if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+    event.preventDefault(); const direction = event.key === 'ArrowRight' ? 1 : -1;
+    if (state.tab === 'scenario') { scenarioUI.index += direction; renderScenario(); }
+    else selectStep(state.index + direction);
+  }
 });
 async function boot() {
   try {

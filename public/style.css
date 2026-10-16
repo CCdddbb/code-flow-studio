@@ -180,6 +180,19 @@ main:focus { outline: none; }
 .limitations { margin: 0; padding-left: 16px; color: var(--muted); font-size: 11px; line-height: 1.9; }
 .limitations li { margin-bottom: 6px; }
 .diagnostic-summary { color: #80621b; font-size: 10px; padding-top: 10px; border-top: 1px solid var(--border-soft); margin-top: 12px; }
+.scenario-notice { padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--subtle); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.scenario-state-block { margin: 17px 0; }
+.scenario-state-block h3 { font-size: 15px; margin: 0; }
+.scenario-stores { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); gap: 16px; margin: 18px 0; }
+.scenario-store { border: 1px solid var(--border); border-radius: 5px; min-width: 0; overflow: hidden; }
+.scenario-store h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; margin: 0; padding: 12px; border-bottom: 1px solid var(--border); }
+.scenario-snapshots { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,200px),1fr)); }
+.scenario-snapshots>div { padding: 12px; min-width: 0; }
+.scenario-snapshots h4 { color: var(--muted); margin: 0 0 8px; font: 11px var(--mono); }
+.scenario-snapshots pre { font: 11px/1.8 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+#scenario-position { overflow-wrap: anywhere; min-width: 0; }
+#scenario-view .data-controls select { max-width: 100%; min-width: 0; }
+#scenario-view .data-controls label { flex-wrap: wrap; max-width: 100%; }
 .data-controls { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
 .data-controls label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
 .data-controls select { font: 11px var(--mono); }
