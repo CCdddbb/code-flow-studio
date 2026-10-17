@@ -190,6 +190,22 @@ main:focus { outline: none; }
 .scenario-snapshots>div { padding: 12px; min-width: 0; }
 .scenario-snapshots h4 { color: var(--muted); margin: 0 0 8px; font: 11px var(--mono); }
 .scenario-snapshots pre { font: 11px/1.8 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.scenario-comparison { margin: 24px 0; padding-top: 16px; border-top: 1px solid var(--border); min-width: 0; }
+.scenario-comparison>summary { font-size: 13px; font-weight: 600; cursor: pointer; }
+.comparison-endpoints { border: 1px solid var(--border); border-radius: 5px; margin-bottom: 16px; }
+.comparison-endpoints p { margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+.comparison-stores { display: grid; gap: 16px; min-width: 0; }
+.comparison-content { padding: 12px; min-width: 0; }
+.comparison-table-wrap { max-width: 100%; overflow-x: auto; }
+.comparison-table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 11px; }
+.comparison-table caption { text-align: left; color: var(--muted); padding-bottom: 8px; }
+.comparison-table th, .comparison-table td { padding: 9px 6px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border-soft); overflow-wrap: anywhere; }
+.comparison-table code { font: 11px/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.comparison-change { display: block; color: var(--muted); font-size: 10px; font-weight: normal; margin-top: 4px; }
+.comparison-trace { margin-top: 14px; font-size: 11px; }
+.comparison-trace summary { cursor: pointer; color: var(--muted); }
+.comparison-trace ol { margin: 0; padding-left: 16px; overflow-wrap: anywhere; }
+.comparison-trace li { margin-bottom: 8px; line-height: 1.8; }
 #scenario-position { overflow-wrap: anywhere; min-width: 0; }
 #scenario-view .data-controls select { max-width: 100%; min-width: 0; }
 #scenario-view .data-controls label { flex-wrap: wrap; max-width: 100%; }

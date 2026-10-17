@@ -73,6 +73,32 @@ export function runScenario(scenario, pathId) {
     return { id: step.id, label: step.label, basis: step.basis, fromState, toState: state, condition: transition?.condition ?? '无状态迁移', before, after: structuredClone(records), mutations: structuredClone(step.mutations) };
   });
 }
+// Compare authored final snapshots, not runtime equivalence or real database writes.
+export function compareScenarioPaths(scenario, leftPathId, rightPathId) {
+  const leftFrames = runScenario(scenario, leftPathId), rightFrames = runScenario(scenario, rightPathId);
+  const endpoint = (id, frames) => {
+    const path = scenario.scenarios.find(item => item.id === id), final = frames.at(-1);
+    return { pathId: id, label: path.label, kind: path.kind, finalState: final.toState, stepCount: frames.length, mutationCount: frames.reduce((sum, frame) => sum + frame.mutations.length, 0) };
+  };
+  const left = endpoint(leftPathId, leftFrames), right = endpoint(rightPathId, rightFrames);
+  const compareFields = (a, b, leftPresent = true, rightPresent = true, path = []) => {
+    const object = value => value !== null && typeof value === 'object';
+    if (leftPresent && rightPresent && object(a) && object(b)) {
+      const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+      if (!keys.length) return [{ path, change: 'same', left: { present: true, value: structuredClone(a) }, right: { present: true, value: structuredClone(b) } }];
+      return keys.flatMap(key => compareFields(a[key], b[key], Object.hasOwn(a, key), Object.hasOwn(b, key), [...path, key]));
+    }
+    const change = !leftPresent ? 'right-only' : !rightPresent ? 'left-only' : a === b ? 'same' : 'different';
+    return [{ path, change, left: leftPresent ? { present: true, value: structuredClone(a) } : { present: false }, right: rightPresent ? { present: true, value: structuredClone(b) } : { present: false } }];
+  };
+  const trace = (frames, storeId) => frames.flatMap((frame, stepIndex) => frame.mutations.filter(mutation => mutation.storeId === storeId).map(mutation => ({ stepId: frame.id, stepIndex, label: frame.label, ...structuredClone(mutation) })));
+  const stores = scenario.stores.map(store => {
+    const a = leftFrames.at(-1).after[store.id], b = rightFrames.at(-1).after[store.id];
+    const fields = compareFields(a, b), leftMutations = trace(leftFrames, store.id), rightMutations = trace(rightFrames, store.id);
+    return { storeId: store.id, label: store.label, sameFinalRecord: fields.every(field => field.change === 'same'), fields, left: { record: structuredClone(a), mutations: leftMutations }, right: { record: structuredClone(b), mutations: rightMutations } };
+  });
+  return { basis: scenarioBasis, scenarioId: scenario.id, left, right, sameFinalState: left.finalState === right.finalState, sameFinalRecords: stores.every(store => store.sameFinalRecord), changedFieldCount: stores.reduce((count, store) => count + store.fields.filter(field => field.change !== 'same').length, 0), stores, limitations: ['仅对照作者指定路径的最终状态、模拟快照和显式操作，不判断运行等价、幂等性或恢复正确性。', '操作次数不是数据库写入次数；相同终态也不代表存储一致或事务原子性。'] };
+}
 const scenarioSet = (storeId, field, value) => ({ storeId, field, op: 'set', value });
 const scenarioStep = (id, label, transitionId = null, mutations = []) => ({ id, label, transitionId, mutations, basis: scenarioBasis });
 const scenarioTransition = (id, from, to, condition) => ({ id, from, to, condition });

@@ -37,7 +37,7 @@
         <div id="outline-nav" class="outline-nav" aria-label="步骤导航"></div>
       </nav>
       <div class="sidebar-note"><span class="privacy-dot"></span> 本机工作区<p>只读分析，不执行源码。<br>文件不会发送至外部服务。</p></div>
-      <div class="sidebar-footer">v0.3.0-alpha.1 <span>静态分析 / 本地运行</span></div>
+      <div class="sidebar-footer">v0.3.0-alpha.2 <span>静态分析 / 本地运行</span></div>
     </aside>
 
     <div class="main-shell">
@@ -90,6 +90,14 @@
             <div class="player-toolbar"><div class="player-actions"><button id="scenario-previous" class="button" aria-label="参考场景上一步">←</button><button id="scenario-next" class="button" aria-label="参考场景下一步">→</button><button id="scenario-reset" class="button quiet">重置场景</button></div><span id="scenario-position" role="status" aria-live="polite"></span></div>
             <div id="scenario-stores" class="scenario-stores"></div>
             <h3 class="subheading">本步模拟变化</h3><div id="scenario-mutations" class="mapping-list"></div>
+            <details class="scenario-comparison" id="scenario-comparison"><summary>路径对比 · 最终状态与存储差异</summary>
+              <p class="section-note">左侧使用上方当前路径，右侧可任选。无论步骤停在哪里，始终比较完整路径的终点；不是实际执行、幂等性或恢复正确性证明。</p>
+              <div class="data-controls"><label>右侧对照路径 <select id="scenario-compare-path" aria-label="右侧对照路径"></select></label><button class="button" id="scenario-compare-swap">交换左右路径</button><label><input type="checkbox" id="scenario-compare-changes" checked>只看差异字段</label></div>
+              <p id="scenario-compare-summary" class="scenario-notice" role="status" aria-live="polite"></p>
+              <div id="scenario-compare-endpoints" class="scenario-snapshots comparison-endpoints"></div>
+              <div id="scenario-compare-stores" class="comparison-stores"></div>
+              <p class="section-note">字段路径按 JSON 键数组展示；「字段不存在」不同于 null。操作次数仅为作者声明的 set / unset / increment 数量，不是数据库写入次数。相同快照不证明过程等价、没有重复写入或强事务。</p>
+            </details>
             <h3 class="subheading">事务与一致性边界</h3><div id="scenario-boundaries"></div>
             <details class="diagnostics"><summary>假设与来源记录</summary><div id="scenario-assumptions"></div><p class="section-note">以上案例随应用内置，不属于当前分析 JSON；离线 HTML 也包含相同的公开参考案例。暂不支持导入、编辑或关联真实源码。</p></details>
           </article>

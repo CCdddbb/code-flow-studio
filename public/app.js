@@ -1,6 +1,6 @@
 import { sampleInput, project, differences, mappings } from './simulation.js';
 import { BASIS, qualitySummary, reviewAdvice, EXPORT_MODES } from './quality.js';
-import { REFERENCE_SCENARIOS, runScenario } from './scenarios.js';
+import { REFERENCE_SCENARIOS, runScenario, compareScenarioPaths } from './scenarios.js';
 
 const $ = id => document.getElementById(id);
 const state = { model: null, files: null, index: 0, playing: false, timer: null, token: null, tab: 'assembly', selectedFiles: [], offline: !!document.getElementById('embedded-model'), request: 0 };
@@ -96,7 +96,51 @@ function setTab(tab) {
   for (const name of ['assembly', 'data', 'scenario', 'evidence']) $(`${name}-view`).hidden = name !== tab;
   if (tab !== 'assembly') stop();
 }
-const scenarioUI = { reference: 0, pathId: null, index: 0 };
+const scenarioUI = { reference: 0, pathId: null, comparePathId: null, index: 0 };
+function renderScenarioComparison(model) {
+  const comparison = compareScenarioPaths(model, scenarioUI.pathId, scenarioUI.comparePathId);
+  const stateLabel = id => model.states.find(item => item.id === id).label;
+  $('scenario-compare-summary').textContent = `${comparison.sameFinalState ? '终态相同' : '终态不同'} · ${comparison.changedFieldCount} 个差异字段 · ${comparison.sameFinalRecords ? '最终快照相同（不代表过程等价）' : '最终快照不同'}。人工假设 / 模拟，不计入源码证据。`;
+  $('scenario-compare-endpoints').replaceChildren(...[['左侧', comparison.left], ['右侧', comparison.right]].map(([label, endpoint]) => {
+    const pane = node('div'); pane.append(node('h4', '', `${label} · ${endpoint.label}`), node('p', '', `终态：${stateLabel(endpoint.finalState)} · ${endpoint.stepCount} 步 · ${endpoint.mutationCount} 项显式操作`)); return pane;
+  }));
+  const labels = { same: '相同', different: '值不同', 'left-only': '仅左侧存在', 'right-only': '仅右侧存在' };
+  $('scenario-compare-stores').replaceChildren(...comparison.stores.map(store => {
+    const card = node('article', 'scenario-store comparison-store');
+    card.append(node('h3', '', `${store.label} · ${store.sameFinalRecord ? '最终记录相同' : '最终记录不同'}`));
+    const content = node('div', 'comparison-content');
+    const fields = store.fields.filter(field => !$('scenario-compare-changes').checked || field.change !== 'same');
+    if (!fields.length) content.append(node('p', 'empty-note', '没有差异字段。相同终点不能证明恢复正确或没有重复写入。'));
+    else {
+      const wrap = node('div', 'comparison-table-wrap'), table = node('table', 'comparison-table');
+      const caption = node('caption', '', `${store.label} · 最终字段对照`); table.append(caption);
+      const head = node('thead'), header = node('tr');
+      for (const label of ['字段键路径 / 差异', '左侧最终值', '右侧最终值']) { const th = node('th', '', label); th.scope = 'col'; header.append(th); }
+      head.append(header); table.append(head);
+      const body = node('tbody');
+      for (const field of fields) {
+        const row = node('tr'), name = node('th'); name.scope = 'row';
+        name.append(node('code', '', JSON.stringify(field.path)), node('span', 'comparison-change', labels[field.change])); row.append(name);
+        for (const side of [field.left, field.right]) { const td = node('td'); td.append(node('code', '', side.present ? pretty(side.value) : '字段不存在')); row.append(td); }
+        body.append(row);
+      }
+      table.append(body); wrap.append(table); content.append(wrap);
+    }
+    const trace = node('details', 'comparison-trace'); trace.append(node('summary', '', `显式操作轨迹 · 左 ${store.left.mutations.length} / 右 ${store.right.mutations.length}`));
+    const columns = node('div', 'scenario-snapshots');
+    for (const [label, side] of [['左侧', store.left], ['右侧', store.right]]) {
+      const pane = node('div'); pane.append(node('h4', '', label));
+      if (!side.mutations.length) pane.append(node('p', 'empty-note', '没有声明操作'));
+      else {
+        const list = node('ol');
+        for (const mutation of side.mutations) list.append(node('li', '', `步骤 ${mutation.stepIndex + 1} · ${mutation.label} · ${mutation.op} ${JSON.stringify([mutation.field])}${mutation.op === 'unset' ? '' : ` = ${pretty(mutation.value)}`}`));
+        pane.append(list);
+      }
+      columns.append(pane);
+    }
+    trace.append(columns); content.append(trace); card.append(content); return card;
+  }));
+}
 function renderScenario(reset = false) {
   const model = REFERENCE_SCENARIOS[scenarioUI.reference];
   if (reset || !model.scenarios.some(path => path.id === scenarioUI.pathId)) { scenarioUI.pathId = model.scenarios[0].id; scenarioUI.index = 0; }
@@ -105,6 +149,10 @@ function renderScenario(reset = false) {
   const kindLabels = { success: '成功', rejected: '拒绝', failure: '失败 / 未知', recovery: '恢复' };
   $('scenario-path').replaceChildren(...model.scenarios.map(path => { const option = node('option', '', `${kindLabels[path.kind]} · ${path.label}`); option.value = path.id; return option; }));
   $('scenario-path').value = scenarioUI.pathId;
+  if (reset || !model.scenarios.some(path => path.id === scenarioUI.comparePathId)) scenarioUI.comparePathId = (model.scenarios.find(path => path.kind === 'recovery') || model.scenarios[0]).id;
+  $('scenario-compare-path').replaceChildren(...model.scenarios.map(path => { const option = node('option', '', `${kindLabels[path.kind]} · ${path.label}`); option.value = path.id; return option; }));
+  $('scenario-compare-path').value = scenarioUI.comparePathId;
+  renderScenarioComparison(model);
   const frames = runScenario(model, scenarioUI.pathId);
   scenarioUI.index = Math.max(0, Math.min(scenarioUI.index, frames.length - 1));
   const frame = frames[scenarioUI.index], stateLabel = id => model.states.find(item => item.id === id).label;
@@ -352,6 +400,9 @@ $('dropzone').addEventListener('drop', event => { event.preventDefault(); $('dro
 $('home-button').addEventListener('click', () => { setTab('assembly'); setSidebar(false); });
 $('scenario-reference').addEventListener('change', event => { scenarioUI.reference = Number(event.target.value); renderScenario(true); });
 $('scenario-path').addEventListener('change', event => { scenarioUI.pathId = event.target.value; scenarioUI.index = 0; renderScenario(); });
+$('scenario-compare-path').addEventListener('change', event => { scenarioUI.comparePathId = event.target.value; renderScenario(); });
+$('scenario-compare-changes').addEventListener('change', () => renderScenarioComparison(REFERENCE_SCENARIOS[scenarioUI.reference]));
+$('scenario-compare-swap').addEventListener('click', () => { [scenarioUI.pathId, scenarioUI.comparePathId] = [scenarioUI.comparePathId, scenarioUI.pathId]; scenarioUI.index = 0; renderScenario(); });
 $('scenario-previous').addEventListener('click', () => { scenarioUI.index--; renderScenario(); });
 $('scenario-next').addEventListener('click', () => { scenarioUI.index++; renderScenario(); });
 $('scenario-reset').addEventListener('click', () => { scenarioUI.index = 0; renderScenario(); });

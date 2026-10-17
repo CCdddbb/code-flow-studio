@@ -4,7 +4,7 @@
 
 Local-first, evidence-backed visualization for Java, JavaScript and TypeScript. Upload source, explore a static flow outline, inspect field mappings, and export a standalone interactive page.
 
-> v0.3.0-alpha.1 新增独立的参考场景实验室：状态迁移、逻辑存储、逐步快照和跨存储边界。场景为人工编写的公开合成案例，不从上传源码自动生成。默认仍导出无源码正文的评审版；静态分析不是实际执行，未知行为不补造。
+> v0.3.0-alpha.2 在独立参考场景实验室新增路径终点对比：并列核对最终状态、字段差异及显式操作轨迹，避免把相同终态误当成恢复正确或过程等价。场景为人工编写的公开合成案例，不从上传源码自动生成。默认仍导出无源码正文的评审版；静态分析不是实际执行，未知行为不补造。
 
 ![接入装配工作台](docs/images/studio-desktop.png)
 
@@ -19,6 +19,7 @@ Local-first, evidence-backed visualization for Java, JavaScript and TypeScript. 
 - **可信度摘要**：区分源码事实、静态匹配、推断节点、未知关系与限制项，不用未知项填高覆盖率。
 - **分级导出**：完整内部版、脱敏评审版、业务演示版；JSON 与单文件 HTML 使用同一策略，下载前确认清单及风险。
 - **参考场景**：草稿提交与订单消息两类合成案例，分别包含成功、拒绝、失败和恢复路径；逐步查看状态与存储 Before/After。
+- **路径对比**：任选两条参考路径，核对最终状态、嵌套字段和存储操作轨迹；区分缺失与 null，支持只看差异、左右交换和离线使用。
 - **本地优先**：不调用外部 AI、不执行源码、不连接业务数据库。
 
 ## 快速开始
@@ -58,11 +59,17 @@ PowerShell：`$env:PORT=4180; npm start`。
 1. 切到「参考场景」，选择「草稿提交与恢复」。
 2. 查看成功路径中的版本递增与临时字段移除，再切换「版本冲突」「回执超时」「超时后恢复」。
 3. 点击步骤，核对状态变化、存储快照与明确标出的非原子边界。
-4. 切换「订单与消息交付」，相同组件展示第二类业务。
+4. 展开「路径对比」，左侧使用当前路径，右侧任选；默认对照成功与恢复。比较的是整条路径的终点，不随当前步骤位置变化。
+5. 观察草稿成功/恢复：终态相同，但 `revision` 和 `outbox` 不同；展开操作轨迹核对差异来源。它说明参考模型需要评审，不证明真实系统存在相同问题。
+6. 切换「订单与消息交付」，成功/恢复的最终记录相同但步骤不同；相同快照不证明幂等性或事务原子性。
 
 ![参考场景实验室](docs/images/studio-scenarios.png)
 
 这些案例**与当前分析项目无关联**，不影响质量计数。条件由作者指定而非执行，事务均标记未验证，数据全部为合成值。HTML 内置相同公开案例；分析 JSON 不包含它们，暂不支持自定义场景导入、编辑或源码关联。详见 [v0.3 第一阶段报告](docs/09-v03-scenario-lab.md)。
+
+![路径终点对比](docs/images/studio-path-comparison.png)
+
+路径对比仅消费内置公开模型，不把结果或临时选择加入分析 JSON。详见 [路径对比迭代报告](docs/10-v03-path-comparison.md)。
 
 ## 命令行生成
 
@@ -103,7 +110,7 @@ npm run evidence -- fixtures/typescript artifacts/v02-order/analysis.json
 
 ## 支持范围
 
-| 能力 | v0.3.0-alpha.1（本机内部分析） |
+| 能力 | v0.3.0-alpha.2（本机内部分析） |
 | --- | --- |
 | JS/TS 解析 | TypeScript AST；函数、方法、接口/类型字面量、调用表达式、if 条件 |
 | JS/TS 引用解析 | 同文件可见命名函数、this 方法、相对路径显式命名导入 |
@@ -113,7 +120,7 @@ npm run evidence -- fixtures/typescript artifacts/v02-order/analysis.json
 | 受限模拟 | JS/TS 直线 const/return 的对象、数组、引用、字面量投影 |
 | 条件/重试/事务 | 展示条件与注解，不执行分支，不证明恢复/幂等/事务传播 |
 | 数据库存储 | 调用命名提示，标记 inferred；**不生成真实表结构或持久化快照** |
-| 参考场景实验室 | 独立合成场景；状态、set/unset/increment 模拟与逻辑存储快照，**不自动提取业务场景** |
+| 参考场景实验室 | 独立合成场景；状态、set/unset/increment、逻辑快照与路径终点对比，**不自动提取业务场景或验证恢复正确性** |
 | 整仓库/其他语言 | 尚未支持；推荐限定模块与入口 |
 
 调用图是**静态展开**，包含条件内的调用；播放顺序不是执行顺序。复杂控制流、有副作用语句、未知计算会阻断后续模拟或返回 `$unknown`。unknown 不等于 null、失败、空表或回滚。
@@ -131,7 +138,7 @@ npm audit
 
 macOS 有 Google Chrome 时自动使用；其他已有浏览器可通过 `CHROME_PATH` 指定。首次安装 Chromium 需要网络。
 
-当前本地验收：**63 个 Node 测试 + 21 项浏览器检查通过**。包括场景 Schema 与非法迁移校验、两案例四类路径、三种导出策略、源码泄漏哨兵、确认门禁、并发隔离、两种语言的离线回放及 390px 窄屏。详见 [v0.3 第一阶段报告](docs/09-v03-scenario-lab.md)。远程 CI 状态请查看 [GitHub Actions](https://github.com/CCdddbb/code-flow-studio/actions)，本地通过不等同于远程通过。
+当前本地验收：**72 个 Node 测试 + 24 项浏览器检查通过**。包括路径对比的嵌套/缺失字段、确定性、轨迹、交换和空对象，以及原有 Schema、两案例四类路径、三种导出策略、源码泄漏哨兵、确认门禁、并发隔离、两种语言的离线对比及 390px 窄屏。详见 [路径对比迭代报告](docs/10-v03-path-comparison.md)。远程 CI 状态请查看 [GitHub Actions](https://github.com/CCdddbb/code-flow-studio/actions)，本地通过不等同于远程通过。
 
 ## 项目结构
 
@@ -149,6 +156,7 @@ docs/            方案、实际模型说明、交付报告、公开截图
 架构：`代码 → 静态事实/证据 → 校验模型 → 受限模拟 → 通用页面`。浏览器 UI 使用原生 ES Modules，无框架或远程 CDN；分析使用 TypeScript 与 Ajv。
 
 - [更新日志与兼容性提示](CHANGELOG.md)
+- [v0.3 路径对比与验收](docs/10-v03-path-comparison.md)
 - [v0.3 参考场景实验室与验收](docs/09-v03-scenario-lab.md)
 - [工作台 UI 重设计与开源参考](docs/08-ui-redesign.md)
 - [v0.2 第一轮迭代设计与验收](docs/07-v02-iteration-report.md)

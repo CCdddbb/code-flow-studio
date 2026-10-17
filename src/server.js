@@ -26,7 +26,7 @@ export function createServer() {
         const [file, type] = staticFiles.get(url.pathname);
         send(200, await readFile(path.join(ROOT, 'public', file), 'utf8'), type); return;
       }
-      if (req.method === 'GET' && url.pathname === '/api/config') { send(200, { token, limits: LIMITS, version: '0.3.0-alpha.1' }); return; }
+      if (req.method === 'GET' && url.pathname === '/api/config') { send(200, { token, limits: LIMITS, version: '0.3.0-alpha.2' }); return; }
       if (req.method === 'GET' && /^\/api\/demo\/(typescript|java)$/.test(url.pathname)) {
         const kind = url.pathname.split('/').pop();
         const { files } = await scanDirectory(path.join(ROOT, 'fixtures', kind));
